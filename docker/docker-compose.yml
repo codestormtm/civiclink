@@ -1,0 +1,72 @@
+services:
+  backend:
+    build:
+      context: ../backend
+    container_name: civic_backend
+    restart: always
+    env_file:
+      - ../backend/.env
+    environment:
+      PORT: 5001
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: civic
+      DB_PASSWORD: civic123
+      DB_NAME: civiclink
+      JWT_SECRET: secret123
+      JWT_EXPIRES_IN: 1d
+      CLIENT_URL: http://localhost:5173
+      MONITORING_ENABLED: "true"
+      ADMIN_PORTAL_URL: http://host.docker.internal:5174
+      CITIZEN_PORTAL_URL: http://host.docker.internal:5173
+      TRANSPARENCY_PORTAL_URL: http://host.docker.internal:5173/public
+      BACKEND_API_URL: http://127.0.0.1:5001/api/health/app
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: password123
+      MINIO_BUCKET: civiclink
+    ports:
+      - "5002:5001"
+    depends_on:
+      - postgres
+      - redis
+      - minio
+
+  postgres:
+    image: postgres:16
+    container_name: civic_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: civic
+      POSTGRES_PASSWORD: civic123
+      POSTGRES_DB: civiclink
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: civic_redis
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio
+    container_name: civic_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+  minio_data:

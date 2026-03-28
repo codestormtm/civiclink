@@ -1,0 +1,8 @@
+const ROLES = {
+  SYSTEM_ADMIN: "SYSTEM_ADMIN",
+  DEPT_ADMIN: "DEPT_ADMIN",
+  FIELD_WORKER: "FIELD_WORKER",
+  CITIZEN: "CITIZEN",
+};
+
+module.exports = ROLES;
