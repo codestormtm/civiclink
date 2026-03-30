@@ -1,9 +1,24 @@
-const { existsSync } = require("fs");
+const { existsSync, readFileSync } = require("fs");
+const os = require("os");
 
 require("dotenv").config();
 
 const runningInDocker = existsSync("/.dockerenv");
-const defaultMonitoringHost = process.env.MONITORING_HOST || (runningInDocker ? "host.docker.internal" : "localhost");
+const runningInWsl = Boolean(process.env.WSL_DISTRO_NAME) || os.release().toLowerCase().includes("microsoft");
+
+function detectWslHostIp() {
+  try {
+    const resolvConf = readFileSync("/etc/resolv.conf", "utf8");
+    const match = resolvConf.match(/^\s*nameserver\s+([0-9.]+)\s*$/m);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+const detectedWslHostIp = runningInWsl ? detectWslHostIp() : null;
+const defaultMonitoringHost = process.env.MONITORING_HOST
+  || (runningInDocker ? "host.docker.internal" : (detectedWslHostIp || "localhost"));
 const defaultCitizenPortalUrl = `http://${defaultMonitoringHost}:5173`;
 const defaultAdminPortalUrl = `http://${defaultMonitoringHost}:5174`;
 const defaultBackendApiUrl = `http://${runningInDocker ? "127.0.0.1" : "localhost"}:${process.env.PORT || 5001}/api/health/app`;

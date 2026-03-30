@@ -3,6 +3,9 @@ const bcrypt = require("bcrypt");
 const { success, failure } = require("../utils/response");
 
 let departmentChangeLogReadyPromise = null;
+const DEFAULT_ISSUE_TYPE_NAME = "General Complaint";
+const DEFAULT_ISSUE_TYPE_DESCRIPTION =
+  "Fallback complaint type created automatically so new departments are available in citizen intake immediately.";
 
 function ensureDepartmentChangeLogTableExists() {
   if (!departmentChangeLogReadyPromise) {
@@ -37,6 +40,20 @@ function mapDepartmentWriteError(err) {
   return err.message;
 }
 
+async function ensureDefaultIssueType(client, departmentId) {
+  await client.query(
+    `INSERT INTO department_issue_types (department_id, name, description)
+     SELECT $1, $2, $3
+     WHERE NOT EXISTS (
+       SELECT 1
+       FROM department_issue_types
+       WHERE department_id = $1
+         AND is_active = TRUE
+     )`,
+    [departmentId, DEFAULT_ISSUE_TYPE_NAME, DEFAULT_ISSUE_TYPE_DESCRIPTION]
+  );
+}
+
 exports.createDepartment = async (req, res) => {
   const { name, code, contact_email } = req.body;
 
@@ -44,16 +61,27 @@ exports.createDepartment = async (req, res) => {
     return failure(res, "name and code are required", 400);
   }
 
+  const client = await pool.connect();
+
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    const result = await client.query(
       `INSERT INTO departments (name, code, contact_email)
        VALUES ($1, UPPER($2), $3)
        RETURNING *`,
-      [name, code, contact_email || null]
+      [name.trim(), code.trim(), contact_email || null]
     );
+
+    await ensureDefaultIssueType(client, result.rows[0].id);
+    await client.query("COMMIT");
+
     return success(res, result.rows[0], 201);
   } catch (err) {
-    return failure(res, err.message);
+    await client.query("ROLLBACK");
+    return failure(res, mapDepartmentWriteError(err));
+  } finally {
+    client.release();
   }
 };
 

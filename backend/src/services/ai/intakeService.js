@@ -60,22 +60,40 @@ function getGroqClient() {
 async function getAvailableDepartmentsAndTypes() {
   const result = await pool.query(`
     SELECT
-      d.id   AS dept_id,
-      d.name AS dept_name,
-      dit.id   AS type_id,
-      dit.name AS type_name
+      d.id            AS dept_id,
+      d.name          AS dept_name,
+      d.code          AS dept_code,
+      d.contact_email AS dept_contact_email,
+      dit.id          AS type_id,
+      dit.name        AS type_name,
+      dit.description AS type_description
     FROM departments d
-    JOIN department_issue_types dit ON dit.department_id = d.id
-    WHERE d.is_active = TRUE AND dit.is_active = TRUE
+    LEFT JOIN department_issue_types dit
+      ON dit.department_id = d.id
+     AND dit.is_active = TRUE
+    WHERE d.is_active = TRUE
     ORDER BY d.name, dit.name
   `);
 
   const map = {};
   for (const row of result.rows) {
     if (!map[row.dept_id]) {
-      map[row.dept_id] = { id: row.dept_id, name: row.dept_name, types: [] };
+      map[row.dept_id] = {
+        id: row.dept_id,
+        name: row.dept_name,
+        code: row.dept_code,
+        contact_email: row.dept_contact_email,
+        types: [],
+      };
     }
-    map[row.dept_id].types.push({ id: row.type_id, name: row.type_name });
+
+    if (row.type_id) {
+      map[row.dept_id].types.push({
+        id: row.type_id,
+        name: row.type_name,
+        description: row.type_description,
+      });
+    }
   }
   return Object.values(map);
 }
@@ -106,10 +124,12 @@ FIELDS YOU MUST COLLECT:
 RULES:
 - Ask ONE question at a time. Never ask multiple questions in one message.
 - When the citizen describes a problem in plain language, automatically identify the department and type.
+- Use department name, department code, and complaint type descriptions as matching hints.
 - Generate the title and description YOURSELF - do not ask the citizen to write them.
 - When you need the location, set "needs_location": true - the app will show a map picker automatically. Do NOT ask for a typed address.
 - Once address_text is already in the collected data, do NOT ask for location again.
 - Once you have all 5 fields filled, set is_complete to true.
+- If a department has no complaint types in the list, you may still identify the department, but keep issue_type_id as null and explain briefly that complaint categories for that department still need configuration.
 - Be warm, empathetic, and brief (2-4 sentences per reply).
 
 CURRENTLY COLLECTED DATA (keep these in your draft response):
