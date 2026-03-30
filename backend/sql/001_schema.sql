@@ -5,6 +5,7 @@ CREATE TABLE departments (
   name VARCHAR(120) NOT NULL,
   code VARCHAR(40) NOT NULL UNIQUE,
   contact_email VARCHAR(255),
+  contact_phone VARCHAR(50),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -135,6 +136,31 @@ CREATE TABLE complaint_assignments (
     ON DELETE RESTRICT
 );
 
+CREATE TABLE password_reset_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  department_id UUID NOT NULL REFERENCES departments(id) ON DELETE RESTRICT,
+  target_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  target_email VARCHAR(255) NOT NULL,
+  target_name VARCHAR(150) NOT NULL,
+  target_role VARCHAR(20) NOT NULL,
+  nic_number VARCHAR(50) NOT NULL,
+  mobile_number VARCHAR(50) NOT NULL,
+  request_letter_url TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  viewed_at TIMESTAMPTZ,
+  viewed_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  completed_at TIMESTAMPTZ,
+  completed_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT password_reset_requests_target_role_check CHECK (
+    target_role = 'DEPT_ADMIN'
+  ),
+  CONSTRAINT password_reset_requests_status_check CHECK (
+    status IN ('PENDING', 'COMPLETED')
+  )
+);
+
 CREATE INDEX idx_department_issue_types_department_id
   ON department_issue_types(department_id);
 
@@ -158,6 +184,19 @@ CREATE INDEX idx_complaints_issue_type_id
 
 CREATE INDEX idx_complaint_assignments_worker_user_id
   ON complaint_assignments(worker_user_id);
+
+CREATE INDEX idx_password_reset_requests_created_at
+  ON password_reset_requests(created_at DESC);
+
+CREATE INDEX idx_password_reset_requests_department_id
+  ON password_reset_requests(department_id);
+
+CREATE INDEX idx_password_reset_requests_target_user_id
+  ON password_reset_requests(target_user_id);
+
+CREATE INDEX idx_password_reset_requests_unread
+  ON password_reset_requests(viewed_at)
+  WHERE viewed_at IS NULL;
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$
@@ -250,6 +289,11 @@ EXECUTE FUNCTION set_updated_at();
 
 CREATE TRIGGER complaint_assignments_set_updated_at
 BEFORE UPDATE ON complaint_assignments
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER password_reset_requests_set_updated_at
+BEFORE UPDATE ON password_reset_requests
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 

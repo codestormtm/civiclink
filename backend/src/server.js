@@ -7,6 +7,7 @@ const env = require("./config/env");
 const { pool, checkDatabaseConnection } = require("./config/db");
 const { ensureBucketExists } = require("./config/minio");
 const { ensureMonitoringSchema, startMonitoringLoop } = require("./services/monitoringService");
+const { ensurePasswordResetSchema } = require("./services/passwordResetService");
 const logger = require("./utils/logger");
 
 const server = http.createServer(app);
@@ -45,6 +46,7 @@ async function start() {
 
   try {
     await ensureMonitoringSchema();
+    await ensurePasswordResetSchema();
     if (env.monitoring.enabled) {
       startMonitoringLoop(io);
       logger.info("Monitoring services initialized");

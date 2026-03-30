@@ -1,4 +1,5 @@
 const { pool } = require("../config/db");
+const bcrypt = require("bcrypt");
 const { success, failure } = require("../utils/response");
 
 // GET /api/dept-admin/summary
@@ -245,6 +246,60 @@ exports.getPerformanceReport = async (req, res) => {
       monthly: monthly.rows,
       by_priority: byPriority.rows,
     });
+  } catch (err) {
+    return failure(res, err.message);
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  const { current_password, new_password, confirm_password } = req.body;
+
+  if (!current_password || !new_password || !confirm_password) {
+    return failure(
+      res,
+      "current_password, new_password, and confirm_password are required",
+      400
+    );
+  }
+
+  if (new_password !== confirm_password) {
+    return failure(res, "New password and confirmation do not match", 400);
+  }
+
+  if (String(new_password).length < 8) {
+    return failure(res, "New password must be at least 8 characters long", 400);
+  }
+
+  try {
+    const adminResult = await pool.query(
+      `SELECT id, password_hash
+       FROM users
+       WHERE id = $1 AND role = 'DEPT_ADMIN' AND is_active = TRUE`,
+      [req.user.id]
+    );
+
+    if (adminResult.rows.length === 0) {
+      return failure(res, "Department admin not found", 404);
+    }
+
+    const admin = adminResult.rows[0];
+    const passwordMatches = await bcrypt.compare(current_password, admin.password_hash);
+
+    if (!passwordMatches) {
+      return failure(res, "Current password is incorrect", 401);
+    }
+
+    const nextPasswordHash = await bcrypt.hash(new_password, 10);
+
+    await pool.query(
+      `UPDATE users
+       SET password_hash = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [nextPasswordHash, req.user.id]
+    );
+
+    return success(res, { changed: true }, 200, "Password changed successfully");
   } catch (err) {
     return failure(res, err.message);
   }

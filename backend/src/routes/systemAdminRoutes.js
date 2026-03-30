@@ -14,6 +14,41 @@ router.post(
 );
 
 router.get(
+  "/password-reset-requests",
+  authMiddleware,
+  roleMiddleware(["SYSTEM_ADMIN"]),
+  controller.listPasswordResetRequests
+);
+
+router.get(
+  "/password-reset-requests/unread-count",
+  authMiddleware,
+  roleMiddleware(["SYSTEM_ADMIN"]),
+  controller.getPasswordResetUnreadCount
+);
+
+router.get(
+  "/password-reset-requests/:id",
+  authMiddleware,
+  roleMiddleware(["SYSTEM_ADMIN"]),
+  controller.getPasswordResetRequest
+);
+
+router.patch(
+  "/password-reset-requests/:id/view",
+  authMiddleware,
+  roleMiddleware(["SYSTEM_ADMIN"]),
+  controller.markPasswordResetRequestViewed
+);
+
+router.post(
+  "/password-reset-requests/:id/reset-password",
+  authMiddleware,
+  roleMiddleware(["SYSTEM_ADMIN"]),
+  controller.resetPasswordFromRequest
+);
+
+router.get(
   "/monitoring/summary",
   authMiddleware,
   roleMiddleware(["SYSTEM_ADMIN"]),

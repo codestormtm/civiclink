@@ -1,8 +1,8 @@
-INSERT INTO departments (name, code, contact_email)
+INSERT INTO departments (name, code, contact_email, contact_phone)
 VALUES
-  ('Municipal', 'MUNICIPAL', 'municipal@civiclink.local'),
-  ('EB', 'EB', 'eb@civiclink.local'),
-  ('Transport', 'TRANSPORT', 'transport@civiclink.local');
+  ('Municipal', 'MUNICIPAL', 'municipal@civiclink.local', '+94 11 123 4567'),
+  ('EB', 'EB', 'eb@civiclink.local', '+94 11 234 5678'),
+  ('Transport', 'TRANSPORT', 'transport@civiclink.local', '+94 11 345 6789');
 
 INSERT INTO department_issue_types (department_id, name, description)
 SELECT d.id, t.name, t.description

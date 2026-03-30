@@ -1,6 +1,7 @@
 const { pool } = require("../config/db");
 const bcrypt = require("bcrypt");
 const { success, failure } = require("../utils/response");
+const { ensurePasswordResetSchema } = require("../services/passwordResetService");
 
 let departmentChangeLogReadyPromise = null;
 const DEFAULT_ISSUE_TYPE_NAME = "General Complaint";
@@ -55,10 +56,16 @@ async function ensureDefaultIssueType(client, departmentId) {
 }
 
 exports.createDepartment = async (req, res) => {
-  const { name, code, contact_email } = req.body;
+  const { name, code, contact_email, contact_phone } = req.body;
 
   if (!name || !code) {
     return failure(res, "name and code are required", 400);
+  }
+
+  try {
+    await ensurePasswordResetSchema();
+  } catch (err) {
+    return failure(res, err.message);
   }
 
   const client = await pool.connect();
@@ -67,10 +74,10 @@ exports.createDepartment = async (req, res) => {
     await client.query("BEGIN");
 
     const result = await client.query(
-      `INSERT INTO departments (name, code, contact_email)
-       VALUES ($1, UPPER($2), $3)
+      `INSERT INTO departments (name, code, contact_email, contact_phone)
+       VALUES ($1, UPPER($2), $3, $4)
        RETURNING *`,
-      [name.trim(), code.trim(), contact_email || null]
+      [name.trim(), code.trim(), contact_email || null, contact_phone || null]
     );
 
     await ensureDefaultIssueType(client, result.rows[0].id);
@@ -87,6 +94,8 @@ exports.createDepartment = async (req, res) => {
 
 exports.getDepartments = async (_req, res) => {
   try {
+    await ensurePasswordResetSchema();
+
     const result = await pool.query(
       `SELECT d.*,
               COUNT(DISTINCT dit.id) AS issue_type_count,
@@ -147,13 +156,14 @@ exports.getDepartmentIssueTypes = async (req, res) => {
 
 exports.updateDepartment = async (req, res) => {
   const { departmentId } = req.params;
-  const { name, code, contact_email, admin_password } = req.body;
+  const { name, code, contact_email, contact_phone, admin_password } = req.body;
 
   if (!name || !code || !admin_password) {
     return failure(res, "name, code, and admin_password are required", 400);
   }
 
   try {
+    await ensurePasswordResetSchema();
     await ensureDepartmentChangeLogTableExists();
   } catch (err) {
     return failure(res, err.message);
@@ -184,7 +194,7 @@ exports.updateDepartment = async (req, res) => {
     transactionStarted = true;
 
     const currentDepartmentResult = await client.query(
-      `SELECT id, name, code, contact_email
+      `SELECT id, name, code, contact_email, contact_phone
        FROM departments
        WHERE id = $1
        FOR UPDATE`,
@@ -203,10 +213,11 @@ exports.updateDepartment = async (req, res) => {
       `UPDATE departments
        SET name = $1,
            code = UPPER($2),
-           contact_email = $3
-       WHERE id = $4
+           contact_email = $3,
+           contact_phone = $4
+       WHERE id = $5
        RETURNING *`,
-      [name.trim(), code.trim(), contact_email || null, departmentId]
+      [name.trim(), code.trim(), contact_email || null, contact_phone || null, departmentId]
     );
 
     const updatedDepartment = updateResult.rows[0];
@@ -224,6 +235,7 @@ exports.updateDepartment = async (req, res) => {
           name: updatedDepartment.name,
           code: updatedDepartment.code,
           contact_email: updatedDepartment.contact_email,
+          contact_phone: updatedDepartment.contact_phone,
         }),
       ]
     );

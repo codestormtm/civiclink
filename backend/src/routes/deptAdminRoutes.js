@@ -6,6 +6,7 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 
 router.use(authMiddleware, roleMiddleware(["DEPT_ADMIN"]));
 
+router.post("/change-password", controller.changePassword);
 router.get("/summary",     controller.getSummary);
 router.get("/complaints",  controller.getFilteredComplaints);
 router.get("/workload",    controller.getWorkerWorkload);
