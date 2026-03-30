@@ -54,7 +54,7 @@ export default function Login({ setLoggedIn }) {
         {/* Tab switcher */}
         <div style={{
           display: "flex",
-          background: "#f3f4f6",
+          background: "#f7ebd0",
           borderRadius: 10,
           padding: 4,
           marginBottom: 24,
@@ -76,9 +76,9 @@ export default function Login({ setLoggedIn }) {
                 fontWeight: 600,
                 cursor: "pointer",
                 transition: "all 0.15s",
-                background: tab === t.key ? "#ffffff" : "transparent",
-                color: tab === t.key ? "#1a56db" : "#6b7280",
-                boxShadow: tab === t.key ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                background: tab === t.key ? "var(--sl-white)" : "transparent",
+                color: tab === t.key ? "var(--sl-green-900)" : "var(--sl-muted-500)",
+                boxShadow: tab === t.key ? "0 1px 3px rgba(77, 34, 12, 0.1)" : "none",
                 fontFamily: "inherit",
                 width: "auto",
               }}
@@ -147,7 +147,7 @@ export default function Login({ setLoggedIn }) {
 
         <div style={{ textAlign: "center", marginTop: 18, fontSize: 12, color: "#9ca3af" }}>
           By continuing you agree to the{" "}
-          <span style={{ color: "#1a56db" }}>Terms of Service</span>
+          <span style={{ color: "var(--sl-green-900)" }}>Terms of Service</span>
         </div>
       </div>
     </div>

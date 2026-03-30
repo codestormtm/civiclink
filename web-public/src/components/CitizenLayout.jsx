@@ -26,7 +26,7 @@ export default function CitizenLayout({ children }) {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f3f4f6" }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #fff4d6 0%, var(--sl-surface) 100%)" }}>
       {/* Navbar */}
       <div className="navbar">
         <div className="navbar-brand">

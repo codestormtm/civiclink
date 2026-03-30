@@ -109,24 +109,24 @@ export default function GuidedReportPage() {
   if (submitted) {
     return (
       <div className="container" style={{ paddingTop: 40 }}>
-        <div className="card" style={{ textAlign: "center", padding: "40px 32px" }}>
+        <div className="card" style={{ textAlign: "center", padding: "40px 32px", background: "rgba(255,255,255,0.94)" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>{"\u2705"}</div>
-          <h2 style={{ color: "#0e9f6e", margin: "0 0 8px" }}>Complaint Submitted!</h2>
-          <p style={{ color: "#6b7280", fontSize: 14, margin: "0 0 4px" }}>
+          <h2 style={{ color: "var(--sl-green-900)", margin: "0 0 8px" }}>Complaint Submitted!</h2>
+          <p style={{ color: "var(--sl-muted-500)", fontSize: 14, margin: "0 0 4px" }}>
             Your complaint has been received and will be reviewed by the relevant department.
           </p>
-          <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 24 }}>
-            Reference ID: <strong style={{ color: "#111827", fontFamily: "monospace" }}>{submitted.id}</strong>
+          <p style={{ color: "var(--sl-muted-500)", fontSize: 13, marginBottom: 24 }}>
+            Reference ID: <strong style={{ color: "var(--sl-ink-900)", fontFamily: "monospace" }}>{submitted.id}</strong>
           </p>
-          <div style={{ background: "#f9fafb", borderRadius: 8, padding: "14px 16px", textAlign: "left", marginBottom: 24 }}>
-            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 6, textTransform: "uppercase", fontWeight: 700 }}>Submitted as</div>
-            <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{submitted.title}</div>
+          <div style={{ background: "#fff7e7", border: "1px solid var(--sl-line)", borderRadius: 8, padding: "14px 16px", textAlign: "left", marginBottom: 24 }}>
+            <div style={{ fontSize: 12, color: "var(--sl-muted-500)", marginBottom: 6, textTransform: "uppercase", fontWeight: 700 }}>Submitted as</div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: "var(--sl-ink-900)" }}>{submitted.title}</div>
           </div>
           <button
             onClick={() => startSession(language)}
             style={{
               padding: "10px 24px", fontSize: 13, fontWeight: 600,
-              background: "#1a56db", color: "#fff", border: "none",
+              background: "var(--sl-maroon-900)", color: "var(--sl-white)", border: "none",
               borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
             }}
           >
@@ -142,8 +142,8 @@ export default function GuidedReportPage() {
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 20, color: "#111827" }}>AI Complaint Assistant</h2>
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
+            <h2 style={{ margin: 0, fontSize: 20, color: "var(--sl-ink-900)" }}>AI Complaint Assistant</h2>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--sl-muted-500)" }}>
               Tell me what's wrong - I'll handle the rest.
             </p>
           </div>
@@ -162,16 +162,17 @@ export default function GuidedReportPage() {
       )}
 
       <div style={{
-        background: "#fff",
+        background: "rgba(255,255,255,0.94)",
         borderRadius: 12,
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--sl-line)",
+        boxShadow: "var(--sl-shadow)",
         overflow: "hidden",
         height: showLocationPicker ? 620 : 440,
         display: "flex",
         flexDirection: "column",
       }}>
         {starting ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 14 }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--sl-muted-500)", fontSize: 14 }}>
             Starting AI assistant...
           </div>
         ) : (
@@ -192,13 +193,13 @@ export default function GuidedReportPage() {
             const keys = ["department_id", "issue_type_id", "description", "address_text"];
             const filled = !!draft[keys[i]];
             return (
-              <div key={field} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: filled ? "#0e9f6e" : "#9ca3af" }}>
+              <div key={field} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: filled ? "var(--sl-green-900)" : "var(--sl-muted-500)" }}>
                 <div style={{
                   width: 8, height: 8, borderRadius: "50%",
-                  background: filled ? "#0e9f6e" : "#d1d5db",
+                  background: filled ? "var(--sl-green-900)" : "#d6c8b6",
                 }} />
                 {field}
-                {i < 3 && <span style={{ color: "#e5e7eb", marginLeft: 4 }}>{"\u2014"}</span>}
+                {i < 3 && <span style={{ color: "#d6c8b6", marginLeft: 4 }}>{"\u2014"}</span>}
               </div>
             );
           })}
@@ -207,7 +208,7 @@ export default function GuidedReportPage() {
               onClick={() => setShowPreview(true)}
               style={{
                 marginLeft: "auto", padding: "4px 12px", fontSize: 12, fontWeight: 600,
-                background: "#0e9f6e", color: "#fff", border: "none",
+                background: "var(--sl-green-900)", color: "var(--sl-white)", border: "none",
                 borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
               }}
             >

@@ -17,12 +17,13 @@ export default function LanguageSelector({ value, onChange, disabled }) {
             fontSize: 12,
             fontWeight: 600,
             borderRadius: 20,
-            border: value === l.code ? "none" : "1px solid #d1d5db",
-            background: value === l.code ? "#1a56db" : "#fff",
-            color: value === l.code ? "#fff" : "#374151",
+            border: value === l.code ? "1px solid #6a0f2a" : "1px solid var(--sl-line)",
+            background: value === l.code ? "var(--sl-maroon-900)" : "var(--sl-white)",
+            color: value === l.code ? "var(--sl-white)" : "var(--sl-ink-700)",
             cursor: disabled ? "not-allowed" : "pointer",
             opacity: disabled ? 0.6 : 1,
             fontFamily: "inherit",
+            boxShadow: value === l.code ? "0 8px 18px rgba(138, 21, 56, 0.16)" : "none",
           }}
         >
           {l.label}
