@@ -1,14 +1,20 @@
 import { useState } from "react";
-import { clearAuth, getName } from "../utils/auth";
+import { clearCitizenSession, getName } from "../utils/auth";
 
 export default function CitizenLayout({ children }) {
   const [menu, setMenu] = useState("guide");
   const [activeLang, setActiveLang] = useState("en");
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const name = getName();
 
-  const logout = () => {
-    clearAuth();
+  const logout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    setLoggingOut(true);
+    await clearCitizenSession();
     window.location.reload();
   };
 
@@ -64,7 +70,9 @@ export default function CitizenLayout({ children }) {
           </div>
 
           <span className="nav-user">{name}</span>
-          <button className="nav-logout" onClick={logout}>Logout</button>
+          <button className="nav-logout" onClick={logout} disabled={loggingOut}>
+            {loggingOut ? "Logging out..." : "Logout"}
+          </button>
         </div>
       </div>
 

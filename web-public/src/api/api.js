@@ -1,5 +1,5 @@
 import axios from "axios";
-import { clearAuth, getToken } from "../utils/auth";
+import { clearCitizenSession, getToken } from "../utils/auth";
 import { API_BASE_URL } from "./config";
 
 const api = axios.create({
@@ -16,9 +16,9 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
     if (err.response?.status === 401) {
-      clearAuth();
+      await clearCitizenSession();
       window.location.reload();
     }
     return Promise.reject(err);

@@ -25,6 +25,12 @@ function getTargetDefinitions() {
       healthcheck_url: env.monitoring.adminPortalUrl,
     },
     {
+      target_key: "worker_portal",
+      label: "Worker Portal",
+      target_type: "HTTP",
+      healthcheck_url: env.monitoring.workerPortalUrl,
+    },
+    {
       target_key: "citizen_portal",
       label: "Citizen Portal",
       target_type: "HTTP",

@@ -1,8 +1,11 @@
 const { pool } = require("../config/db");
 const { minioClient, bucketName: BUCKET } = require("../config/minio");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
-
-const MINIO_URL = process.env.MINIO_URL || "http://localhost:9000";
+const {
+  buildStoredObjectReference,
+  mapAttachmentForResponse,
+  mapAttachmentsForResponse,
+} = require("../utils/attachmentStorage");
 
 // GET /citizen-complaints/departments
 exports.getDepartments = async (req, res) => {
@@ -122,7 +125,7 @@ exports.uploadComplaintAttachment = async (req, res) => {
       "Content-Type": file.mimetype,
     });
 
-    const fileUrl = `${MINIO_URL}/${BUCKET}/${fileName}`;
+    const fileUrl = buildStoredObjectReference(fileName);
 
     const result = await pool.query(
       `INSERT INTO complaint_attachments (complaint_id, file_url, file_type, uploaded_by_user_id)
@@ -131,10 +134,12 @@ exports.uploadComplaintAttachment = async (req, res) => {
       [complaintId, fileUrl, file.mimetype, userId]
     );
 
+    const attachment = await mapAttachmentForResponse(result.rows[0]);
+
     res.status(201).json({
       success: true,
       message: "Attachment uploaded successfully",
-      data: result.rows[0],
+      data: attachment,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -234,11 +239,13 @@ exports.trackComplaintByReference = async (req, res) => {
       });
     }
 
+    const signedAttachments = await mapAttachmentsForResponse(attachments.rows);
+
     res.json({
       success: true,
       data: {
         complaint,
-        attachments: attachments.rows,
+        attachments: signedAttachments,
         timeline,
       },
     });

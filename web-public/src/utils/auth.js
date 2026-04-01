@@ -1,6 +1,9 @@
 // Centralized auth helpers for web-public.
 // All reads/writes/clears of auth state go through here.
 
+import { signOut } from "firebase/auth";
+import { auth, isFirebaseConfigured } from "../firebase/client";
+
 const KEYS = {
   TOKEN: "token",
   ROLE: "role",
@@ -15,6 +18,21 @@ export function setAuth({ token, role, name }) {
 
 export function clearAuth() {
   Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+}
+
+export async function clearCitizenSession() {
+  clearAuth();
+
+  if (!isFirebaseConfigured() || !auth) {
+    return;
+  }
+
+  try {
+    await signOut(auth);
+  } catch {
+    // Local CivicLink session is already cleared. Ignore Firebase sign-out errors
+    // so logout still completes and the app returns to the login screen.
+  }
 }
 
 export function getToken() {

@@ -67,12 +67,8 @@ export default function Login({ setLoggedIn }) {
       }));
 
       if (data.flow === "WORKER_CONTACT") {
-        window.alert(
-          data.contact_phone
-            ? `Please contact ${data.department_name} using ${data.contact_phone} to reset your password.`
-            : `Please contact ${data.department_name} to reset your password.`
-        );
         setShowForgotForm(false);
+        setForgotError("Worker accounts must use the worker portal for password help.");
         return;
       }
 

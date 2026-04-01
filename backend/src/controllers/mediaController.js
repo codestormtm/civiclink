@@ -2,8 +2,10 @@ const { pool } = require("../config/db");
 const { minioClient, bucketName: BUCKET } = require("../config/minio");
 const { sendNotification } = require("../utils/notificationService");
 const { success, failure } = require("../utils/response");
-
-const MINIO_URL = process.env.MINIO_URL || "http://localhost:9000";
+const {
+  buildStoredObjectReference,
+  mapAttachmentForResponse,
+} = require("../utils/attachmentStorage");
 
 exports.uploadMedia = async (req, res) => {
   const { complaint_id } = req.body;
@@ -57,7 +59,7 @@ exports.uploadMedia = async (req, res) => {
       }
     );
 
-    const fileUrl = `${MINIO_URL}/${BUCKET}/${fileName}`;
+    const fileUrl = buildStoredObjectReference(fileName);
 
     const result = await pool.query(
       `INSERT INTO complaint_attachments (complaint_id, file_url, file_type, uploaded_by_user_id)
@@ -68,7 +70,9 @@ exports.uploadMedia = async (req, res) => {
 
     sendNotification("Media uploaded for issue");
 
-    return success(res, result.rows[0], 201);
+    const attachment = await mapAttachmentForResponse(result.rows[0]);
+
+    return success(res, attachment, 201);
   } catch (err) {
     return failure(res, err.message);
   }

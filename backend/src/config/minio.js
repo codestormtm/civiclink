@@ -9,6 +9,14 @@ const minioClient = new Minio.Client({
   secretKey: env.minio.secretKey,
 });
 
+const minioPublicClient = new Minio.Client({
+  endPoint: env.minio.publicEndPoint,
+  port: env.minio.publicPort,
+  useSSL: env.minio.publicUseSSL,
+  accessKey: env.minio.accessKey,
+  secretKey: env.minio.secretKey,
+});
+
 const bucketName = env.minio.bucket;
 
 async function ensureBucketExists() {
@@ -18,4 +26,4 @@ async function ensureBucketExists() {
   }
 }
 
-module.exports = { minioClient, bucketName, ensureBucketExists };
+module.exports = { minioClient, minioPublicClient, bucketName, ensureBucketExists };

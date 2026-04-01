@@ -6,6 +6,7 @@ const app = require("./app");
 const env = require("./config/env");
 const { pool, checkDatabaseConnection } = require("./config/db");
 const { ensureBucketExists } = require("./config/minio");
+const { ensureFirebaseAuthSchema } = require("./services/firebaseAuthSchemaService");
 const { ensureMonitoringSchema, startMonitoringLoop } = require("./services/monitoringService");
 const { ensurePasswordResetSchema } = require("./services/passwordResetService");
 const logger = require("./utils/logger");
@@ -45,6 +46,7 @@ async function start() {
   }
 
   try {
+    await ensureFirebaseAuthSchema();
     await ensureMonitoringSchema();
     await ensurePasswordResetSchema();
     if (env.monitoring.enabled) {

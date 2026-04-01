@@ -273,7 +273,7 @@ These are worth checking before making feature changes:
 
 - `backend/sql/001_schema.sql` does not define `priority_level` or `sla_due_at`, but backend controllers assume both exist. The separate `addSlaFields.js` migration must have been run.
 - `backend/src/controllers/assignmentController.js` updates active assignments to status `REASSIGNED`, but the base schema check constraint only allows `ASSIGNED`, `IN_PROGRESS`, `COMPLETED`, `REJECTED`. This likely causes runtime failures unless the DB constraint was manually changed later.
-- `backend/src/constants/roles.js` defines `FIELD_WORKER`, but the rest of the codebase consistently uses `WORKER`.
+- `backend/src/constants/roles.js` defines `WORKER`, matching the rest of the codebase.
 - `backend/src/services/ai/intakeService.js` uses Groq, but `backend/scripts/listGeminiModels.js` is leftover Gemini-era tooling and is not aligned with current AI integration.
 - `web-public` uses Google Translate in `index.html` while the AI intake also has native multilingual prompts. There are effectively two translation mechanisms.
 - Many files contain mojibake in comments/strings, suggesting encoding issues in the repository.

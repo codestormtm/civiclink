@@ -25,10 +25,34 @@ const { success, failure } = require("./utils/response");
 const { checkStorageHealth } = require("./services/monitoringService");
 
 const app = express();
+const allowedOrigins = new Set(
+  [
+    env.clientUrl,
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+  ].filter(Boolean)
+);
 
-app.use(cors({
-  origin: [env.clientUrl, "http://localhost:5174"],
-}));
+const corsOptions = {
+  origin(origin, callback) {
+    // Allow same-origin tools, curl, health checks, and explicit dev frontends.
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (allowedOrigins.has(origin)) {
+      callback(null, origin);
+      return;
+    }
+
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 app.use(requestLogger);
 
@@ -46,6 +70,15 @@ app.use("/api/intake", intakeRoutes);
 app.use("/api/dept-admin", deptAdminRoutes);
 
 app.get("/", (_req, res) => res.send("CivicLink API Running"));
+
+app.get("/api", (_req, res) => {
+  return success(res, {
+    ok: true,
+    service: "backend_api",
+    root: "/api",
+    health: "/api/health/app",
+  }, 200, "API root");
+});
 
 app.get("/api/health/app", (_req, res) => {
   return success(res, {

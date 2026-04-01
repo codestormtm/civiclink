@@ -26,9 +26,13 @@ CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(150) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
   role VARCHAR(20) NOT NULL,
   department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  firebase_uid VARCHAR(255),
+  auth_provider VARCHAR(20),
+  auth_source VARCHAR(20) NOT NULL DEFAULT 'LOCAL',
+  email_verified_at TIMESTAMPTZ,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -39,6 +43,28 @@ CREATE TABLE users (
     (role IN ('DEPT_ADMIN', 'WORKER') AND department_id IS NOT NULL)
     OR
     (role IN ('SYSTEM_ADMIN', 'CITIZEN') AND department_id IS NULL)
+  ),
+  CONSTRAINT users_auth_source_check CHECK (
+    auth_source IN ('LOCAL', 'FIREBASE')
+  ),
+  CONSTRAINT users_auth_provider_check CHECK (
+    auth_provider IS NULL OR auth_provider IN ('password', 'google')
+  ),
+  CONSTRAINT users_credential_source_check CHECK (
+    (
+      auth_source = 'LOCAL'
+      AND firebase_uid IS NULL
+      AND auth_provider IS NULL
+      AND password_hash IS NOT NULL
+    )
+    OR
+    (
+      auth_source = 'FIREBASE'
+      AND role = 'CITIZEN'
+      AND firebase_uid IS NOT NULL
+      AND auth_provider IN ('password', 'google')
+      AND password_hash IS NULL
+    )
   )
 );
 
@@ -169,6 +195,10 @@ CREATE INDEX idx_users_department_id
 
 CREATE INDEX idx_users_role
   ON users(role);
+
+CREATE UNIQUE INDEX idx_users_firebase_uid
+  ON users(firebase_uid)
+  WHERE firebase_uid IS NOT NULL;
 
 CREATE INDEX idx_worker_profiles_department_id
   ON worker_profiles(department_id);

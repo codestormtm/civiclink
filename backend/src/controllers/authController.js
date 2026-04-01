@@ -3,13 +3,20 @@ const jwt = require("jsonwebtoken");
 
 const { pool } = require("../config/db");
 const env = require("../config/env");
+const {
+  isFirebaseAuthEnabled,
+  verifyFirebaseIdToken,
+} = require("../config/firebaseAdmin");
 const { minioClient, bucketName: BUCKET } = require("../config/minio");
 const ROLES = require("../constants/roles");
+const { ensureFirebaseAuthSchema } = require("../services/firebaseAuthSchemaService");
 const { ensurePasswordResetSchema } = require("../services/passwordResetService");
 const { success, failure } = require("../utils/response");
 
 const JWT_SECRET = env.jwt.secret;
 const MINIO_URL = process.env.MINIO_URL || "http://localhost:9000";
+const ADMIN_PORTAL_ROLES = [ROLES.SYSTEM_ADMIN, ROLES.DEPT_ADMIN];
+const WORKER_PORTAL_ROLES = [ROLES.WORKER];
 
 function normalizeName(value) {
   return String(value || "")
@@ -23,6 +30,267 @@ function buildUnsupportedForgotPasswordResponse() {
     flow: "UNSUPPORTED",
     eligible: false,
     message: "Forgot password is not available for this account.",
+  };
+}
+
+function buildSessionPayload(user) {
+  const token = jwt.sign(
+    { id: user.id, role: user.role, department_id: user.department_id },
+    JWT_SECRET,
+    { expiresIn: env.jwt.expiresIn }
+  );
+
+  return {
+    token,
+    role: user.role,
+    name: user.name,
+    department_id: user.department_id,
+    department_name: user.department_name,
+  };
+}
+
+function buildProfilePayload(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name,
+    department_id: user.department_id,
+    department_name: user.department_name || null,
+  };
+}
+
+function createHttpError(message, statusCode) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function normalizeFirebaseProvider(decodedToken) {
+  const provider = decodedToken?.firebase?.sign_in_provider;
+
+  if (provider === "password") {
+    return "password";
+  }
+
+  if (provider === "google.com") {
+    return "google";
+  }
+
+  return null;
+}
+
+function deriveCitizenName(decodedToken) {
+  const displayName = String(decodedToken?.name || "").trim();
+
+  if (displayName) {
+    return displayName;
+  }
+
+  const email = String(decodedToken?.email || "").trim();
+  if (email.includes("@")) {
+    return email.split("@")[0];
+  }
+
+  return "Citizen";
+}
+
+async function findUserForSession(client, clause, value) {
+  const result = await client.query(
+    `SELECT u.id,
+            u.name,
+            u.email,
+            u.password_hash,
+            u.role,
+            u.department_id,
+            u.is_active,
+            u.firebase_uid,
+            u.auth_source,
+            u.auth_provider,
+            u.email_verified_at,
+            d.name AS department_name
+     FROM users u
+     LEFT JOIN departments d ON u.department_id = d.id
+     WHERE ${clause}
+     LIMIT 1`,
+    [value]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function authenticateLocalUser(email, password) {
+  if (!email || !password) {
+    throw createHttpError("email and password are required", 400);
+  }
+
+  const result = await pool.query(
+    `SELECT u.id,
+            u.name,
+            u.email,
+            u.password_hash,
+            u.role,
+            u.department_id,
+            u.is_active,
+            u.auth_source,
+            d.name AS department_name
+     FROM users u
+     LEFT JOIN departments d ON u.department_id = d.id
+     WHERE LOWER(u.email) = LOWER($1)
+     LIMIT 1`,
+    [String(email).trim()]
+  );
+
+  if (result.rows.length === 0) {
+    throw createHttpError("User not found", 400);
+  }
+
+  const user = result.rows[0];
+
+  if (!user.is_active) {
+    throw createHttpError("User account is inactive", 403);
+  }
+
+  if (user.auth_source === "FIREBASE" || !user.password_hash) {
+    throw createHttpError("This account uses Firebase sign-in.", 400);
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password_hash);
+
+  if (!isMatch) {
+    throw createHttpError("Invalid password", 400);
+  }
+
+  return user;
+}
+
+function assertPortalAccess(user, allowedRoles, portal) {
+  if (allowedRoles.includes(user.role)) {
+    return;
+  }
+
+  if (user.role === ROLES.WORKER) {
+    throw createHttpError("Worker accounts must sign in through the worker portal.", 403);
+  }
+
+  if (user.role === ROLES.CITIZEN) {
+    throw createHttpError("Citizen accounts must sign in through the public portal.", 403);
+  }
+
+  if (portal === "worker") {
+    throw createHttpError("Admin accounts must sign in through the admin portal.", 403);
+  }
+
+  throw createHttpError("This account cannot sign in to this portal.", 403);
+}
+
+async function upsertCitizenFromFirebase(client, identity) {
+  const emailVerifiedAt = identity.emailVerified ? new Date() : null;
+  const firebaseUser = await findUserForSession(client, "u.firebase_uid = $1", identity.firebaseUid);
+
+  if (firebaseUser) {
+    if (firebaseUser.role !== ROLES.CITIZEN) {
+      throw createHttpError("This email is already assigned to an internal CivicLink account.", 409);
+    }
+
+    if (!firebaseUser.is_active) {
+      throw createHttpError("User account is inactive", 403);
+    }
+
+    const updatedResult = await client.query(
+      `UPDATE users
+       SET email = $2,
+           auth_source = 'FIREBASE',
+           auth_provider = $3,
+           email_verified_at = CASE
+             WHEN $4::timestamptz IS NULL THEN email_verified_at
+             ELSE $4::timestamptz
+           END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING id, name, email, role, department_id, is_active`,
+      [
+        firebaseUser.id,
+        identity.email,
+        identity.authProvider,
+        emailVerifiedAt,
+      ]
+    );
+
+    return {
+      ...updatedResult.rows[0],
+      department_name: firebaseUser.department_name,
+    };
+  }
+
+  const emailUser = await findUserForSession(client, "LOWER(u.email) = LOWER($1)", identity.email);
+
+  if (emailUser) {
+    if (emailUser.role !== ROLES.CITIZEN) {
+      throw createHttpError("This email is already assigned to an internal CivicLink account.", 409);
+    }
+
+    if (!emailUser.is_active) {
+      throw createHttpError("User account is inactive", 403);
+    }
+
+    if (emailUser.auth_source === "FIREBASE" && emailUser.firebase_uid !== identity.firebaseUid) {
+      throw createHttpError("This email is already linked to another Firebase account.", 409);
+    }
+
+    const updatedResult = await client.query(
+      `UPDATE users
+       SET firebase_uid = $2,
+           auth_source = 'FIREBASE',
+           auth_provider = $3,
+           email_verified_at = CASE
+             WHEN $4::timestamptz IS NULL THEN email_verified_at
+             ELSE $4::timestamptz
+           END,
+           password_hash = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING id, name, email, role, department_id, is_active`,
+      [
+        emailUser.id,
+        identity.firebaseUid,
+        identity.authProvider,
+        emailVerifiedAt,
+      ]
+    );
+
+    return {
+      ...updatedResult.rows[0],
+      department_name: emailUser.department_name,
+    };
+  }
+
+  const createdResult = await client.query(
+    `INSERT INTO users (
+       name,
+       email,
+       password_hash,
+       role,
+       firebase_uid,
+       auth_provider,
+       auth_source,
+       email_verified_at
+     )
+     VALUES ($1, $2, NULL, $3, $4, $5, 'FIREBASE', $6)
+     RETURNING id, name, email, role, department_id, is_active`,
+    [
+      identity.name,
+      identity.email,
+      ROLES.CITIZEN,
+      identity.firebaseUid,
+      identity.authProvider,
+      emailVerifiedAt,
+    ]
+  );
+
+  return {
+    ...createdResult.rows[0],
+    department_name: null,
   };
 }
 
@@ -53,44 +321,96 @@ exports.login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.password_hash, u.role, u.department_id, u.is_active,
-              d.name AS department_name
-       FROM users u
-       LEFT JOIN departments d ON u.department_id = d.id
-       WHERE u.email = $1`,
-      [email]
-    );
+    const user = await authenticateLocalUser(email, password);
+    assertPortalAccess(user, ADMIN_PORTAL_ROLES, "admin");
 
-    if (result.rows.length === 0) {
-      return failure(res, "User not found", 400);
-    }
+    res.json(buildSessionPayload(user));
+  } catch (err) {
+    return failure(res, err.message, err.statusCode || 500);
+  }
+};
 
-    const user = result.rows[0];
+exports.workerLogin = async (req, res) => {
+  const { email, password } = req.body;
 
-    if (!user.is_active) {
+  try {
+    const user = await authenticateLocalUser(email, password);
+    assertPortalAccess(user, WORKER_PORTAL_ROLES, "worker");
+
+    return res.json(buildSessionPayload(user));
+  } catch (err) {
+    return failure(res, err.message, err.statusCode || 500);
+  }
+};
+
+exports.createFirebaseSession = async (req, res) => {
+  const { idToken } = req.body || {};
+
+  if (!idToken || !String(idToken).trim()) {
+    return failure(res, "idToken is required", 400);
+  }
+
+  if (!isFirebaseAuthEnabled()) {
+    return failure(res, "Firebase citizen authentication is not configured.", 503);
+  }
+
+  try {
+    await ensureFirebaseAuthSchema();
+  } catch (err) {
+    return failure(res, err.message);
+  }
+
+  let decodedToken;
+
+  try {
+    decodedToken = await verifyFirebaseIdToken(String(idToken).trim());
+  } catch {
+    return failure(res, "Invalid Firebase token.", 401);
+  }
+
+  const authProvider = normalizeFirebaseProvider(decodedToken);
+  const email = String(decodedToken.email || "").trim().toLowerCase();
+
+  if (!decodedToken.uid || !email) {
+    return failure(res, "Firebase token must include an email identity.", 400);
+  }
+
+  if (!authProvider) {
+    return failure(res, "Unsupported Firebase sign-in provider.", 400);
+  }
+
+  if (authProvider === "password" && !decodedToken.email_verified) {
+    return failure(res, "Please verify your email address before signing in.", 403);
+  }
+
+  const client = await pool.connect();
+
+  try {
+    const user = await upsertCitizenFromFirebase(client, {
+      firebaseUid: decodedToken.uid,
+      email,
+      name: deriveCitizenName(decodedToken),
+      authProvider,
+      emailVerified: Boolean(decodedToken.email_verified),
+    });
+
+    return res.json(buildSessionPayload(user));
+  } catch (err) {
+    return failure(res, err.message, err.statusCode || 500);
+  } finally {
+    client.release();
+  }
+};
+
+exports.getCurrentSession = async (req, res) => {
+  try {
+    const user = await findUserForSession(pool, "u.id = $1", req.user.id);
+
+    if (!user || !user.is_active) {
       return failure(res, "User account is inactive", 403);
     }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-
-    if (!isMatch) {
-      return failure(res, "Invalid password", 400);
-    }
-
-    const token = jwt.sign(
-      { id: user.id, role: user.role, department_id: user.department_id },
-      JWT_SECRET,
-      { expiresIn: env.jwt.expiresIn }
-    );
-
-    res.json({
-      token,
-      role: user.role,
-      name: user.name,
-      department_id: user.department_id,
-      department_name: user.department_name,
-    });
+    return success(res, buildProfilePayload(user), 200, "Session active");
   } catch (err) {
     return failure(res, err.message);
   }

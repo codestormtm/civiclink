@@ -19,11 +19,13 @@ services:
       CLIENT_URL: http://localhost:5173
       MONITORING_ENABLED: "true"
       ADMIN_PORTAL_URL: http://host.docker.internal:5174
+      WORKER_PORTAL_URL: http://host.docker.internal:5175
       CITIZEN_PORTAL_URL: http://host.docker.internal:5173
       TRANSPARENCY_PORTAL_URL: http://host.docker.internal:5173/public
       BACKEND_API_URL: http://127.0.0.1:5001/api/health/app
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
+      MINIO_PUBLIC_URL: http://localhost:9000
       MINIO_USE_SSL: "false"
       MINIO_ACCESS_KEY: admin
       MINIO_SECRET_KEY: password123
