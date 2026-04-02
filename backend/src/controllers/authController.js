@@ -17,6 +17,8 @@ const JWT_SECRET = env.jwt.secret;
 const MINIO_URL = process.env.MINIO_URL || "http://localhost:9000";
 const ADMIN_PORTAL_ROLES = [ROLES.SYSTEM_ADMIN, ROLES.DEPT_ADMIN];
 const WORKER_PORTAL_ROLES = [ROLES.WORKER];
+const INVALID_LOGIN_MESSAGE = "Invalid email or password";
+const DUMMY_PASSWORD_HASH = "$2b$10$5fRvw5iIPQxjM0M1VYx5UuV3z7i0rGUNShUMHbOWcZH/5Li.yYI8e";
 
 function normalizeName(value) {
   return String(value || "")
@@ -142,7 +144,8 @@ async function authenticateLocalUser(email, password) {
   );
 
   if (result.rows.length === 0) {
-    throw createHttpError("User not found", 400);
+    await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+    throw createHttpError(INVALID_LOGIN_MESSAGE, 401);
   }
 
   const user = result.rows[0];
@@ -158,7 +161,7 @@ async function authenticateLocalUser(email, password) {
   const isMatch = await bcrypt.compare(password, user.password_hash);
 
   if (!isMatch) {
-    throw createHttpError("Invalid password", 400);
+    throw createHttpError(INVALID_LOGIN_MESSAGE, 401);
   }
 
   return user;
@@ -578,7 +581,7 @@ exports.createDeptAdminPasswordResetRequest = async (req, res) => {
     const io = req.app.get("io");
 
     if (io) {
-      io.emit("password_reset_request_created", createdRequest);
+      io.to("role:system_admins").emit("password_reset_request_created", createdRequest);
     }
 
     return success(

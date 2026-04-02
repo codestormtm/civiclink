@@ -254,6 +254,7 @@ exports.removeWorker = async (req, res) => {
   }
 
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
     const adminResult = await client.query(
@@ -332,6 +333,7 @@ exports.removeWorker = async (req, res) => {
     });
 
     await client.query("BEGIN");
+    transactionStarted = true;
 
     const terminationResult = await client.query(
       `INSERT INTO worker_termination_records (
@@ -379,6 +381,7 @@ exports.removeWorker = async (req, res) => {
     );
 
     await client.query("COMMIT");
+    transactionStarted = false;
 
     return success(
       res,
@@ -393,7 +396,9 @@ exports.removeWorker = async (req, res) => {
       "Worker removed successfully"
     );
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
     return failure(res, err.message);
   } finally {
     client.release();
@@ -403,6 +408,7 @@ exports.removeWorker = async (req, res) => {
 exports.createWorker = async (req, res) => {
   const admin = req.user;
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
     const {
@@ -447,6 +453,7 @@ exports.createWorker = async (req, res) => {
     }
 
     await client.query("BEGIN");
+    transactionStarted = true;
 
     const userResult = await client.query(
       `INSERT INTO users (name, email, password_hash, role, department_id)
@@ -501,10 +508,13 @@ exports.createWorker = async (req, res) => {
     );
 
     await client.query("COMMIT");
+    transactionStarted = false;
 
     return success(res, { user_id: userId, ...workerResult.rows[0] }, 201);
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
     console.error("[createWorker error]", err);
     return failure(res, mapWorkerWriteError(err));
   } finally {

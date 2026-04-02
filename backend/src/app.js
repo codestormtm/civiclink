@@ -23,37 +23,18 @@ const authMiddleware = require("./middleware/authMiddleware");
 const { pool } = require("./config/db");
 const { success, failure } = require("./utils/response");
 const { checkStorageHealth } = require("./services/monitoringService");
+const { resolveCorsOrigin } = require("./utils/originSecurity");
 
 const app = express();
-const allowedOrigins = new Set(
-  [
-    env.clientUrl,
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-  ].filter(Boolean)
-);
 
 const corsOptions = {
-  origin(origin, callback) {
-    // Allow same-origin tools, curl, health checks, and explicit dev frontends.
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-
-    if (allowedOrigins.has(origin)) {
-      callback(null, origin);
-      return;
-    }
-
-    callback(new Error(`CORS blocked for origin: ${origin}`));
-  },
+  origin: resolveCorsOrigin,
 };
 
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(requestLogger);
 
 app.use("/api/auth", authRoutes);

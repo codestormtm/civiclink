@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { clearCitizenSession, getName } from "../utils/auth";
+import { getActiveCitizenTab, setActiveCitizenTab } from "../utils/portalState";
 
 export default function CitizenLayout({ children }) {
-  const [menu, setMenu] = useState("guide");
+  const [menu, setMenuState] = useState(() => getActiveCitizenTab());
   const [activeLang, setActiveLang] = useState("en");
   const [loggingOut, setLoggingOut] = useState(false);
 
   const name = getName();
+
+  const setMenu = (nextMenu) => {
+    setMenuState(nextMenu);
+    setActiveCitizenTab(nextMenu);
+  };
 
   const logout = async () => {
     if (loggingOut) {
@@ -26,14 +32,13 @@ export default function CitizenLayout({ children }) {
   };
 
   const navItems = [
-    { key: "guide", label: "🤖 AI Assistant" },
     { key: "submit", label: "Submit Complaint" },
+    { key: "guide", label: "AI Assistant" },
     { key: "track", label: "Track Complaint" },
   ];
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #fff4d6 0%, var(--sl-surface) 100%)" }}>
-      {/* Navbar */}
       <div className="navbar">
         <div className="navbar-brand">
           <div className="navbar-logo">C</div>
@@ -56,7 +61,6 @@ export default function CitizenLayout({ children }) {
         </div>
 
         <div className="navbar-right">
-          {/* Language switcher */}
           <div className="lang-switcher">
             {["en", "ta", "si"].map((lang) => (
               <button
@@ -76,8 +80,7 @@ export default function CitizenLayout({ children }) {
         </div>
       </div>
 
-      {/* Page content */}
-      <div>{children(menu)}</div>
+      <div>{children({ menu, setMenu })}</div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
-const { minioPublicClient, bucketName } = require("../config/minio");
+const { bucketName } = require("../config/minio");
 
-const PRESIGNED_URL_EXPIRY_SECONDS = 60 * 60;
+const ATTACHMENT_ROLE_VALUES = new Set(["BEFORE", "AFTER", "GENERAL"]);
 
 function buildStoredObjectReference(objectName) {
   return String(objectName || "").trim();
@@ -36,43 +36,68 @@ function extractObjectName(fileReference) {
   return normalizedReference;
 }
 
-async function createAttachmentDownloadUrl(fileReference) {
-  const objectName = extractObjectName(fileReference);
-
-  if (!objectName) {
-    return String(fileReference || "");
-  }
-
-  try {
-    return await minioPublicClient.presignedGetObject(
-      bucketName,
-      objectName,
-      PRESIGNED_URL_EXPIRY_SECONDS
-    );
-  } catch {
-    return String(fileReference || "");
-  }
+function normalizeAttachmentRole(role) {
+  const normalizedRole = String(role || "").trim().toUpperCase();
+  return ATTACHMENT_ROLE_VALUES.has(normalizedRole) ? normalizedRole : null;
 }
 
-async function mapAttachmentForResponse(attachment) {
+function isImageMimeType(fileType) {
+  return /^image\//i.test(String(fileType || "").trim());
+}
+
+function resolveAttachmentRole({ requestedRole, fileType, defaultImageRole = "GENERAL" } = {}) {
+  if (!isImageMimeType(fileType)) {
+    return "GENERAL";
+  }
+
+  const normalizedRequestedRole = normalizeAttachmentRole(requestedRole);
+  if (normalizedRequestedRole) {
+    return normalizedRequestedRole;
+  }
+
+  return normalizeAttachmentRole(defaultImageRole) || "GENERAL";
+}
+
+function normalizeBaseUrl(baseUrl) {
+  return String(baseUrl || "").replace(/\/+$/, "");
+}
+
+function buildAttachmentViewUrl(attachmentId, { baseUrl = "", access = "protected" } = {}) {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  const routePrefix = access === "public" ? "/api/public/attachments" : "/api/media/attachments";
+  const relativeUrl = `${routePrefix}/${attachmentId}/view`;
+
+  if (!normalizedBaseUrl) {
+    return relativeUrl;
+  }
+
+  return `${normalizedBaseUrl}${relativeUrl}`;
+}
+
+function mapAttachmentForResponse(attachment, options = {}) {
   const objectName = extractObjectName(attachment?.file_url);
-  const downloadUrl = await createAttachmentDownloadUrl(attachment?.file_url);
 
   return {
     ...attachment,
-    file_url: downloadUrl,
+    file_url: buildAttachmentViewUrl(attachment?.id, options),
     file_object_key: objectName || null,
+    attachment_role: normalizeAttachmentRole(attachment?.attachment_role) || "GENERAL",
+    is_image: isImageMimeType(attachment?.file_type),
   };
 }
 
-async function mapAttachmentsForResponse(attachments) {
-  return Promise.all((attachments || []).map(mapAttachmentForResponse));
+function mapAttachmentsForResponse(attachments, options = {}) {
+  return (attachments || []).map((attachment) => mapAttachmentForResponse(attachment, options));
 }
 
 module.exports = {
+  ATTACHMENT_ROLE_VALUES,
   buildStoredObjectReference,
-  createAttachmentDownloadUrl,
+  buildAttachmentViewUrl,
   extractObjectName,
+  isImageMimeType,
   mapAttachmentForResponse,
   mapAttachmentsForResponse,
+  normalizeAttachmentRole,
+  resolveAttachmentRole,
 };

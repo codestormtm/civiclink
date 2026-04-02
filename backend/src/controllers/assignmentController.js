@@ -2,6 +2,7 @@ const { pool } = require("../config/db");
 const { sendNotification } = require("../utils/notificationService");
 const { success, failure } = require("../utils/response");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
+const { ROOM_ADMINS, userRoom } = require("../utils/socketRooms");
 
 exports.assignTask = async (req, res) => {
   const { complaint_id, worker_user_id } = req.body;
@@ -11,6 +12,7 @@ exports.assignTask = async (req, res) => {
   }
 
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
     const complaintResult = await client.query(
@@ -66,6 +68,7 @@ exports.assignTask = async (req, res) => {
     }
 
     await client.query("BEGIN");
+    transactionStarted = true;
 
     // If there's an existing active assignment, close it before reassigning
     await client.query(
@@ -92,6 +95,7 @@ exports.assignTask = async (req, res) => {
     );
 
     await client.query("COMMIT");
+    transactionStarted = false;
 
     await logComplaintStatusChange({
       complaintId: complaint_id,
@@ -102,13 +106,17 @@ exports.assignTask = async (req, res) => {
     });
 
     const io = req.app.get("io");
-    io.emit("task_assigned", { ...result.rows[0], worker_name: worker.name });
+    const assignmentPayload = { ...result.rows[0], worker_name: worker.name };
+    io.to(ROOM_ADMINS).emit("task_assigned", assignmentPayload);
+    io.to(userRoom(worker_user_id)).emit("task_assigned", assignmentPayload);
 
     sendNotification("Task assigned to worker");
 
-    return success(res, { ...result.rows[0], worker_name: worker.name }, 201);
+    return success(res, assignmentPayload, 201);
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
     return failure(res, err.message);
   } finally {
     client.release();
@@ -158,6 +166,7 @@ exports.updateTaskStatus = async (req, res) => {
   }
 
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
     const assignmentCheck = await client.query(
@@ -173,6 +182,7 @@ exports.updateTaskStatus = async (req, res) => {
     }
 
     await client.query("BEGIN");
+    transactionStarted = true;
 
     const result = await client.query(
       `UPDATE complaint_assignments
@@ -195,6 +205,7 @@ exports.updateTaskStatus = async (req, res) => {
     await client.query(complaintsQuery, [complaintStatus, result.rows[0].complaint_id]);
 
     await client.query("COMMIT");
+    transactionStarted = false;
 
     await logComplaintStatusChange({
       complaintId: result.rows[0].complaint_id,
@@ -205,13 +216,16 @@ exports.updateTaskStatus = async (req, res) => {
     });
 
     const io = req.app.get("io");
-    io.emit("status_updated", result.rows[0]);
+    io.to(ROOM_ADMINS).emit("status_updated", result.rows[0]);
+    io.to(userRoom(req.user.id)).emit("status_updated", result.rows[0]);
 
     sendNotification(`Task status updated to ${status}`);
 
     return success(res, result.rows[0]);
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
     return failure(res, err.message);
   } finally {
     client.release();

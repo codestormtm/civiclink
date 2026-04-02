@@ -1,3 +1,5 @@
+import { History } from "lucide-react";
+
 export default function ComplaintTimeline({ history }) {
   if (!history || history.length === 0) {
     return null;
@@ -13,7 +15,10 @@ export default function ComplaintTimeline({ history }) {
 
   return (
     <div className="worker-stack">
-      <div className="worker-section-heading">Status History</div>
+      <div className="worker-section-title">
+        <History size={18} aria-hidden="true" />
+        <span>Status History</span>
+      </div>
       <div className="worker-timeline">
         {history.map((entry, index) => (
           <div className="worker-timeline-item" key={entry.id || index}>
@@ -29,8 +34,9 @@ export default function ComplaintTimeline({ history }) {
                 {entry.new_status?.replace(/_/g, " ")}
               </div>
               {entry.note && <div className="worker-timeline-note">{entry.note}</div>}
-              <div className="worker-timeline-date">
-                {entry.created_at ? new Date(entry.created_at).toLocaleString() : ""}
+              <div className="worker-timeline-date worker-timeline-meta">
+                <span>{entry.created_at ? new Date(entry.created_at).toLocaleString() : ""}</span>
+                {entry.changed_by_name ? <span>By {entry.changed_by_name}</span> : null}
               </div>
             </div>
           </div>

@@ -26,10 +26,12 @@ function App() {
 
   return (
     <CitizenLayout>
-      {(menu) => {
+      {({ menu, setMenu }) => {
         if (menu === "track") return <TrackComplaint />;
-        if (menu === "submit") return <CitizenComplaintForm />;
-        return <GuidedReportPage />;
+        if (menu === "submit") {
+          return <CitizenComplaintForm onOpenAi={() => setMenu("guide")} onTrack={() => setMenu("track")} />;
+        }
+        return <GuidedReportPage onTrack={() => setMenu("track")} />;
       }}
     </CitizenLayout>
   );

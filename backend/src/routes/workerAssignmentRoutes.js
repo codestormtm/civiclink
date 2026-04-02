@@ -5,6 +5,7 @@ const controller = require("../controllers/workerAssignmentController");
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const upload = require("../middleware/uploadMiddleware");
+const attachmentUpload = upload.createUpload({ maxFiles: 1 });
 
 router.get(
   "/assignments",
@@ -31,7 +32,7 @@ router.post(
   "/assignments/:id/attachments",
   authMiddleware,
   roleMiddleware(["WORKER"]),
-  upload.single("file"),
+  attachmentUpload.single("file"),
   controller.uploadAssignmentAttachment
 );
 

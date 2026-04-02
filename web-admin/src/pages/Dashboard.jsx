@@ -6,6 +6,7 @@ import api from "../api/api";
 import socket from "../api/socket";
 import ComplaintQueueFilters from "../components/ComplaintQueueFilters";
 import SlaWarningCard from "../components/SlaWarningCard";
+import AdminComplaintGalleryModal from "../components/AdminComplaintGalleryModal";
 
 const STATUS_COLORS = {
   SUBMITTED: "#6b7280",
@@ -61,6 +62,9 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editPriority, setEditPriority] = useState("");
+  const [selectedComplaintDetail, setSelectedComplaintDetail] = useState(null);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [galleryError, setGalleryError] = useState("");
 
   const issueTypes = [...new Map(
     issues.map((i) => [i.issue_type_id, { id: i.issue_type_id, name: i.issue_type_name }])
@@ -148,6 +152,26 @@ export default function Dashboard() {
     });
     fetchIssues(filters);
     fetchSummary();
+  };
+
+  const openComplaintGallery = async (complaintId) => {
+    setGalleryLoading(true);
+    setGalleryError("");
+    setSelectedComplaintDetail(null);
+
+    try {
+      const res = await api.get(`/dept-admin/complaints/${complaintId}`);
+      setSelectedComplaintDetail(res.data.data || null);
+    } catch (err) {
+      setGalleryError(err?.response?.data?.error || "Failed to load complaint gallery.");
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
+
+  const closeComplaintGallery = () => {
+    setSelectedComplaintDetail(null);
+    setGalleryError("");
   };
 
   useEffect(() => {
@@ -412,6 +436,22 @@ export default function Dashboard() {
                     </p>
                   )}
 
+                  <div className="admin-issue-actions">
+                    <button
+                      type="button"
+                      className="admin-gallery-btn"
+                      onClick={() => openComplaintGallery(issue.id)}
+                    >
+                      View Gallery
+                    </button>
+
+                    {!isClosed && !isEditing && (
+                      <button className="btn-primary" onClick={() => rejectWrongDepartment(issue.id)}>
+                        Reject Wrong Department
+                      </button>
+                    )}
+                  </div>
+
                   {/* Normal assign row (only when not editing and not closed) */}
                   {!isClosed && !isEditing && (
                     <div className="assign-row">
@@ -423,12 +463,6 @@ export default function Dashboard() {
                         ))}
                       </select>
                     </div>
-                  )}
-
-                  {!isClosed && !isEditing && (
-                    <button className="btn-primary" onClick={() => rejectWrongDepartment(issue.id)}>
-                      Reject Wrong Department
-                    </button>
                   )}
 
                   {issue.assigned_worker_name && !isEditing && (
@@ -493,6 +527,15 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      {(selectedComplaintDetail || galleryLoading || galleryError) && (
+        <AdminComplaintGalleryModal
+          detail={selectedComplaintDetail}
+          loading={galleryLoading}
+          error={galleryError}
+          onClose={closeComplaintGallery}
+        />
+      )}
     </div>
   );
 }

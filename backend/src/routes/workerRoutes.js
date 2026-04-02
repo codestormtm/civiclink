@@ -5,6 +5,13 @@ const controller = require("../controllers/workerController");
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const upload = require("../middleware/uploadMiddleware");
+const workerDocumentUpload = upload.createUpload({
+  maxFiles: 2,
+  allowedMimeTypesByField: {
+    profile_picture: [...upload.IMAGE_MIME_TYPES],
+    nic_copy: [...upload.IMAGE_MIME_TYPES, ...upload.PDF_MIME_TYPES],
+  },
+});
 
 router.get(
   "/",
@@ -17,7 +24,7 @@ router.post(
   "/",
   authMiddleware,
   roleMiddleware(["DEPT_ADMIN"]),
-  upload.fields([
+  workerDocumentUpload.fields([
     { name: "profile_picture", maxCount: 1 },
     { name: "nic_copy", maxCount: 1 },
   ]),

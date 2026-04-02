@@ -69,9 +69,11 @@ exports.createDepartment = async (req, res) => {
   }
 
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
     await client.query("BEGIN");
+    transactionStarted = true;
 
     const result = await client.query(
       `INSERT INTO departments (name, code, contact_email, contact_phone)
@@ -82,10 +84,13 @@ exports.createDepartment = async (req, res) => {
 
     await ensureDefaultIssueType(client, result.rows[0].id);
     await client.query("COMMIT");
+    transactionStarted = false;
 
     return success(res, result.rows[0], 201);
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
     return failure(res, mapDepartmentWriteError(err));
   } finally {
     client.release();

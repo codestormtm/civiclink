@@ -5,7 +5,10 @@ const {
   buildStoredObjectReference,
   mapAttachmentForResponse,
   mapAttachmentsForResponse,
+  resolveAttachmentRole,
 } = require("../utils/attachmentStorage");
+const { getRequestOrigin } = require("../utils/requestOrigin");
+const { ROOM_ADMINS } = require("../utils/socketRooms");
 
 // GET /citizen-complaints/departments
 exports.getDepartments = async (req, res) => {
@@ -89,6 +92,58 @@ exports.createComplaint = async (req, res) => {
       note: "Complaint submitted by citizen",
     });
 
+    const enrichedResult = await pool.query(
+      `SELECT c.id,
+              c.department_id,
+              c.issue_type_id,
+              c.reporter_user_id,
+              c.title,
+              c.description,
+              c.latitude,
+              c.longitude,
+              c.address_text,
+              c.location_source,
+              c.status,
+              c.priority_level,
+              c.sla_due_at,
+              CASE
+                WHEN c.sla_due_at < NOW()
+                  AND c.status NOT IN ('RESOLVED','CLOSED','REJECTED_WRONG_DEPARTMENT')
+                THEN true ELSE false
+              END AS sla_breached,
+              c.rejection_reason,
+              c.submitted_at,
+              c.resolved_at,
+              c.created_at,
+              c.updated_at,
+              d.name AS department_name,
+              d.code AS department_code,
+              dit.name AS issue_type_name,
+              reporter.name AS reporter_name,
+              latest_assignment.worker_user_id AS assigned_worker_id,
+              assignee.name AS assigned_worker_name,
+              latest_assignment.status AS assignment_status
+       FROM complaints c
+       JOIN departments d ON d.id = c.department_id
+       JOIN department_issue_types dit ON dit.id = c.issue_type_id
+       JOIN users reporter ON reporter.id = c.reporter_user_id
+       LEFT JOIN LATERAL (
+         SELECT ca.worker_user_id, ca.status, ca.assigned_at
+         FROM complaint_assignments ca
+         WHERE ca.complaint_id = c.id
+         ORDER BY ca.assigned_at DESC
+         LIMIT 1
+       ) latest_assignment ON TRUE
+       LEFT JOIN users assignee ON assignee.id = latest_assignment.worker_user_id
+       WHERE c.id = $1`,
+      [result.rows[0].id]
+    );
+
+    const io = req.app.get("io");
+    if (io && enrichedResult.rows[0]) {
+      io.to(ROOM_ADMINS).emit("new_issue", enrichedResult.rows[0]);
+    }
+
     res.status(201).json({
       success: true,
       message: "Complaint created successfully",
@@ -126,15 +181,29 @@ exports.uploadComplaintAttachment = async (req, res) => {
     });
 
     const fileUrl = buildStoredObjectReference(fileName);
+    const attachmentRole = resolveAttachmentRole({
+      requestedRole: req.body?.attachment_role,
+      fileType: file.mimetype,
+      defaultImageRole: "BEFORE",
+    });
 
     const result = await pool.query(
-      `INSERT INTO complaint_attachments (complaint_id, file_url, file_type, uploaded_by_user_id)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO complaint_attachments (
+         complaint_id,
+         file_url,
+         file_type,
+         uploaded_by_user_id,
+         attachment_role
+       )
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [complaintId, fileUrl, file.mimetype, userId]
+      [complaintId, fileUrl, file.mimetype, userId, attachmentRole]
     );
 
-    const attachment = await mapAttachmentForResponse(result.rows[0]);
+    const attachment = mapAttachmentForResponse(result.rows[0], {
+      baseUrl: getRequestOrigin(req),
+      access: "protected",
+    });
 
     res.status(201).json({
       success: true,
@@ -182,7 +251,7 @@ exports.trackComplaintByReference = async (req, res) => {
     const complaint = result.rows[0];
 
     const attachments = await pool.query(
-      `SELECT id, file_url, file_type, created_at
+      `SELECT id, file_url, file_type, attachment_role, created_at
        FROM complaint_attachments
        WHERE complaint_id = $1
        ORDER BY created_at DESC`,
@@ -239,7 +308,10 @@ exports.trackComplaintByReference = async (req, res) => {
       });
     }
 
-    const signedAttachments = await mapAttachmentsForResponse(attachments.rows);
+    const signedAttachments = mapAttachmentsForResponse(attachments.rows, {
+      baseUrl: getRequestOrigin(req),
+      access: "protected",
+    });
 
     res.json({
       success: true,

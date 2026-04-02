@@ -2,6 +2,7 @@ const { pool } = require("../config/db");
 const { sendNotification } = require("../utils/notificationService");
 const { success, failure } = require("../utils/response");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
+const { ROOM_ADMINS } = require("../utils/socketRooms");
 
 const COMPLAINT_STATUSES = new Set([
   "SUBMITTED",
@@ -133,7 +134,7 @@ exports.createIssue = async (req, res) => {
     );
 
     const io = req.app.get("io");
-    io.emit("new_issue", result.rows[0]);
+    io.to(ROOM_ADMINS).emit("new_issue", result.rows[0]);
 
     sendNotification("New issue created");
 
@@ -262,7 +263,7 @@ exports.updateStatus = async (req, res) => {
     );
 
     const io = req.app.get("io");
-    io.emit("status_updated", enrichedResult.rows[0]);
+    io.to(ROOM_ADMINS).emit("status_updated", enrichedResult.rows[0]);
 
     sendNotification(`Issue status updated to ${status}`);
 

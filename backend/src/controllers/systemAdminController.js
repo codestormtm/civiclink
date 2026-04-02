@@ -157,10 +157,12 @@ exports.resetPasswordFromRequest = async (req, res) => {
   }
 
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
     await ensurePasswordResetSchema();
     await client.query("BEGIN");
+    transactionStarted = true;
 
     const requestResult = await client.query(
       `SELECT id, target_user_id, status, viewed_at, viewed_by_user_id
@@ -172,6 +174,7 @@ exports.resetPasswordFromRequest = async (req, res) => {
 
     if (requestResult.rows.length === 0) {
       await client.query("ROLLBACK");
+      transactionStarted = false;
       return failure(res, "Password reset request not found", 404);
     }
 
@@ -179,6 +182,7 @@ exports.resetPasswordFromRequest = async (req, res) => {
 
     if (requestRow.status === "COMPLETED") {
       await client.query("ROLLBACK");
+      transactionStarted = false;
       return failure(res, "This password reset request has already been completed", 400);
     }
 
@@ -191,6 +195,7 @@ exports.resetPasswordFromRequest = async (req, res) => {
 
     if (targetUserResult.rows.length === 0) {
       await client.query("ROLLBACK");
+      transactionStarted = false;
       return failure(res, "Target department admin account was not found", 404);
     }
 
@@ -218,11 +223,14 @@ exports.resetPasswordFromRequest = async (req, res) => {
     );
 
     await client.query("COMMIT");
+    transactionStarted = false;
 
     const updatedRequest = await getPasswordResetRequestById(pool, id);
     return success(res, updatedRequest, 200, "Password reset completed successfully");
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
     return failure(res, err.message);
   } finally {
     client.release();

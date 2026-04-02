@@ -3,6 +3,7 @@
 
 import { signOut } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "../firebase/client";
+import { clearCitizenPortalState } from "./portalState";
 
 const KEYS = {
   TOKEN: "token",
@@ -18,6 +19,7 @@ export function setAuth({ token, role, name }) {
 
 export function clearAuth() {
   Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+  clearCitizenPortalState();
 }
 
 export async function clearCitizenSession() {

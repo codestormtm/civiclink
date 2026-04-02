@@ -1,6 +1,8 @@
 const { pool } = require("../config/db");
 const bcrypt = require("bcrypt");
 const { success, failure } = require("../utils/response");
+const { mapAttachmentsForResponse } = require("../utils/attachmentStorage");
+const { getRequestOrigin } = require("../utils/requestOrigin");
 
 // GET /api/dept-admin/summary
 exports.getSummary = async (req, res) => {
@@ -157,6 +159,91 @@ exports.getFilteredComplaints = async (req, res) => {
     }
 
     return success(res, rows);
+  } catch (err) {
+    return failure(res, err.message);
+  }
+};
+
+exports.getComplaintById = async (req, res) => {
+  const deptId = req.user.department_id;
+  const { id } = req.params;
+
+  try {
+    const complaintResult = await pool.query(
+      `SELECT
+         c.id,
+         c.title,
+         c.description,
+         c.status,
+         c.priority_level,
+         c.sla_due_at,
+         c.submitted_at,
+         c.resolved_at,
+         c.address_text,
+         c.latitude,
+         c.longitude,
+         c.rejection_reason,
+         d.name AS department_name,
+         dit.name AS issue_type_name,
+         reporter.name AS reporter_name,
+         latest_assignment.worker_user_id AS assigned_worker_id,
+         assignee.name AS assigned_worker_name,
+         latest_assignment.status AS assignment_status,
+         latest_assignment.assigned_at AS assignment_updated_at
+       FROM complaints c
+       JOIN departments d ON d.id = c.department_id
+       JOIN department_issue_types dit ON dit.id = c.issue_type_id
+       JOIN users reporter ON reporter.id = c.reporter_user_id
+       LEFT JOIN LATERAL (
+         SELECT ca.worker_user_id, ca.status, ca.assigned_at
+         FROM complaint_assignments ca
+         WHERE ca.complaint_id = c.id
+         ORDER BY ca.assigned_at DESC
+         LIMIT 1
+       ) latest_assignment ON TRUE
+       LEFT JOIN users assignee ON assignee.id = latest_assignment.worker_user_id
+       WHERE c.id = $1
+         AND c.department_id = $2`,
+      [id, deptId]
+    );
+
+    if (complaintResult.rows.length === 0) {
+      return failure(res, "Complaint not found", 404);
+    }
+
+    const attachmentsResult = await pool.query(
+      `SELECT id, file_url, file_type, attachment_role, created_at
+       FROM complaint_attachments
+       WHERE complaint_id = $1
+       ORDER BY created_at DESC`,
+      [id]
+    );
+
+    const historyResult = await pool.query(
+      `SELECT
+         l.id,
+         l.old_status,
+         l.new_status,
+         l.note,
+         l.created_at,
+         u.name AS changed_by_name
+       FROM complaint_status_logs l
+       LEFT JOIN users u ON u.id = l.changed_by
+       WHERE l.complaint_id = $1
+       ORDER BY l.created_at ASC`,
+      [id]
+    );
+
+    const attachments = mapAttachmentsForResponse(attachmentsResult.rows, {
+      baseUrl: getRequestOrigin(req),
+      access: "protected",
+    });
+
+    return success(res, {
+      complaint: complaintResult.rows[0],
+      attachments,
+      history: historyResult.rows,
+    });
   } catch (err) {
     return failure(res, err.message);
   }

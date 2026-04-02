@@ -229,6 +229,7 @@ export default function Login({ setLoggedIn }) {
               <input
                 className="login-input"
                 type="file"
+                accept="image/*,.pdf"
                 onChange={(e) => setRequestLetter(e.target.files?.[0] || null)}
               />
             </div>

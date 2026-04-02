@@ -21,7 +21,10 @@ const {
   buildStoredObjectReference,
   mapAttachmentForResponse,
   mapAttachmentsForResponse,
+  resolveAttachmentRole,
 } = require("../utils/attachmentStorage");
+const { getRequestOrigin } = require("../utils/requestOrigin");
+const { ROOM_ADMINS, userRoom } = require("../utils/socketRooms");
 
 // GET /api/worker/assignments
 exports.getMyAssignments = async (req, res) => {
@@ -99,7 +102,7 @@ exports.getMyAssignmentById = async (req, res) => {
     const complaintId = assignmentResult.rows[0].complaint_id;
 
     const attachmentsResult = await pool.query(
-      `SELECT id, file_url, file_type, created_at
+      `SELECT id, file_url, file_type, attachment_role, created_at
        FROM complaint_attachments
        WHERE complaint_id = $1
        ORDER BY created_at DESC`,
@@ -121,7 +124,10 @@ exports.getMyAssignmentById = async (req, res) => {
       [complaintId]
     );
 
-    const attachments = await mapAttachmentsForResponse(attachmentsResult.rows);
+    const attachments = mapAttachmentsForResponse(attachmentsResult.rows, {
+      baseUrl: getRequestOrigin(req),
+      access: "protected",
+    });
 
     return res.json({
       success: true,
@@ -155,6 +161,7 @@ exports.updateMyAssignmentStatus = async (req, res) => {
   const complaintStatus  = status; // "IN_PROGRESS" or "RESOLVED" — both valid for complaints
 
   const client = await pool.connect();
+  let transactionStarted = false;
   try {
     const assignmentResult = await client.query(
       `SELECT ca.id, ca.complaint_id, ca.status AS assignment_status, c.status AS complaint_status
@@ -179,6 +186,7 @@ exports.updateMyAssignmentStatus = async (req, res) => {
     }
 
     await client.query("BEGIN");
+    transactionStarted = true;
 
     await client.query(
       `UPDATE complaint_assignments
@@ -193,6 +201,7 @@ exports.updateMyAssignmentStatus = async (req, res) => {
     await client.query(complaintsQuery, [complaintStatus, assignment.complaint_id]);
 
     await client.query("COMMIT");
+    transactionStarted = false;
 
     await logComplaintStatusChange({
       complaintId: assignment.complaint_id,
@@ -202,12 +211,27 @@ exports.updateMyAssignmentStatus = async (req, res) => {
       note: note || `Worker updated status to ${complaintStatus}`,
     });
 
+    const io = req.app.get("io");
+    if (io) {
+      const eventPayload = {
+        assignment_id: assignment.id,
+        complaint_id: assignment.complaint_id,
+        worker_user_id: workerUserId,
+        assignment_status: assignmentStatus,
+        complaint_status: complaintStatus,
+      };
+      io.to(ROOM_ADMINS).emit("status_updated", eventPayload);
+      io.to(userRoom(workerUserId)).emit("status_updated", eventPayload);
+    }
+
     return res.json({
       success: true,
       data: { assignment_status: assignmentStatus, complaint_status: complaintStatus },
     });
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
     return res.status(500).json({ error: err.message });
   } finally {
     client.release();
@@ -244,15 +268,29 @@ exports.uploadAssignmentAttachment = async (req, res) => {
     });
 
     const fileUrl = buildStoredObjectReference(fileName);
+    const attachmentRole = resolveAttachmentRole({
+      requestedRole: req.body?.attachment_role,
+      fileType: file.mimetype,
+      defaultImageRole: "AFTER",
+    });
 
     const insertResult = await pool.query(
-      `INSERT INTO complaint_attachments (complaint_id, file_url, file_type, uploaded_by_user_id)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO complaint_attachments (
+         complaint_id,
+         file_url,
+         file_type,
+         uploaded_by_user_id,
+         attachment_role
+       )
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [complaintId, fileUrl, file.mimetype, workerUserId]
+      [complaintId, fileUrl, file.mimetype, workerUserId, attachmentRole]
     );
 
-    const attachment = await mapAttachmentForResponse(insertResult.rows[0]);
+    const attachment = mapAttachmentForResponse(insertResult.rows[0], {
+      baseUrl: getRequestOrigin(req),
+      access: "protected",
+    });
 
     return res.status(201).json({ success: true, data: attachment });
   } catch (err) {

@@ -107,7 +107,9 @@ export default function IntakeChat({ messages, onSend, typing, inputDisabled, lo
           <Message key={i} msg={msg} />
         ))}
         {locationPicker && !typing && (
-          <LocationPickerCard onLocationPicked={onLocationPicked} />
+          <div style={{ marginBottom: 12 }}>
+            <LocationPickerCard onLocationPicked={onLocationPicked} />
+          </div>
         )}
         {typing && <TypingIndicator />}
         <div ref={bottomRef} />
@@ -118,7 +120,23 @@ export default function IntakeChat({ messages, onSend, typing, inputDisabled, lo
         background: "rgba(255, 250, 241, 0.98)",
         borderTop: "1px solid var(--sl-line)",
         display: "flex", gap: 10,
+        flexWrap: "wrap",
       }}>
+        {locationPicker && (
+          <div
+            style={{
+              width: "100%",
+              fontSize: 12,
+              color: "var(--sl-muted-500)",
+              background: "#fff8ee",
+              border: "1px solid #f1ddba",
+              borderRadius: 8,
+              padding: "8px 10px",
+            }}
+          >
+            The assistant is waiting for you to confirm the complaint location on the map above.
+          </div>
+        )}
         <textarea
           ref={inputRef}
           placeholder="Type your message... (Enter to send)"

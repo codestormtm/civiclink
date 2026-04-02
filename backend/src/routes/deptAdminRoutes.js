@@ -9,6 +9,7 @@ router.use(authMiddleware, roleMiddleware(["DEPT_ADMIN"]));
 router.post("/change-password", controller.changePassword);
 router.get("/summary",     controller.getSummary);
 router.get("/complaints",  controller.getFilteredComplaints);
+router.get("/complaints/:id", controller.getComplaintById);
 router.get("/workload",    controller.getWorkerWorkload);
 router.get("/performance", controller.getPerformanceReport);
 

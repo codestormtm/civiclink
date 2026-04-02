@@ -1,8 +1,10 @@
+import { CircleHelp, KeyRound, Languages, LockKeyhole, LogIn, Mail } from "lucide-react";
 import { useState } from "react";
 import api from "../api/api";
+import LanguageSelector from "../components/LanguageSelector";
 import { setAuth } from "../utils/auth";
 
-export default function Login({ onLoggedIn }) {
+export default function Login({ onLoggedIn, language, onLanguageChange }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -80,9 +82,17 @@ export default function Login({ onLoggedIn }) {
   return (
     <div className="worker-auth-shell">
       <div className="worker-auth-card">
+        <div className="worker-auth-toolbar notranslate" translate="no">
+          <div className="worker-toolbar-label">
+            <Languages size={16} aria-hidden="true" />
+            <span>Language</span>
+          </div>
+          <LanguageSelector value={language} onChange={onLanguageChange} />
+        </div>
+
         <div className="worker-brand worker-brand-auth">
           <div className="worker-brand-icon">C</div>
-          <div className="worker-brand-copy">
+          <div className="worker-brand-copy notranslate" translate="no">
             <div className="worker-brand-name">CivicLink</div>
             <div className="worker-brand-sub">Worker Portal</div>
           </div>
@@ -99,42 +109,64 @@ export default function Login({ onLoggedIn }) {
         <div className="worker-auth-body">
           <div className="worker-stack">
             <label className="worker-label" htmlFor="worker-email">Work Email</label>
-            <input
-              id="worker-email"
-              className="worker-input"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="worker@department.gov.lk"
-            />
+            <div className="worker-input-with-icon">
+              <Mail size={18} aria-hidden="true" />
+              <input
+                id="worker-email"
+                className="worker-input"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="worker@department.gov.lk"
+              />
+            </div>
           </div>
 
           <div className="worker-stack">
             <label className="worker-label" htmlFor="worker-password">Password</label>
-            <input
-              id="worker-password"
-              className="worker-input"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Enter your password"
-            />
+            <div className="worker-input-with-icon">
+              <LockKeyhole size={18} aria-hidden="true" />
+              <input
+                id="worker-password"
+                className="worker-input"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter your password"
+              />
+            </div>
           </div>
 
           <div className="worker-auth-actions">
-            <button className="worker-primary-btn" onClick={handleLogin} disabled={loading}>
-              {loading ? "Signing in..." : "Sign In to Worker Portal"}
+            <button
+              type="button"
+              className="worker-primary-btn worker-btn-with-icon"
+              onClick={handleLogin}
+              disabled={loading}
+            >
+              <LogIn size={18} aria-hidden="true" />
+              <span>{loading ? "Signing in..." : "Sign In"}</span>
             </button>
 
             <button
               type="button"
-              className="worker-link-btn"
+              className="worker-link-btn worker-link-btn-icon"
               onClick={handleForgotPassword}
               disabled={helpLoading}
             >
-              {helpLoading ? "Checking account..." : "Need password help?"}
+              {helpLoading ? (
+                <>
+                  <KeyRound size={16} aria-hidden="true" />
+                  <span>Checking account...</span>
+                </>
+              ) : (
+                <>
+                  <CircleHelp size={16} aria-hidden="true" />
+                  <span>Need password help?</span>
+                </>
+              )}
             </button>
           </div>
         </div>

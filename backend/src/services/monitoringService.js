@@ -6,6 +6,7 @@ const env = require("../config/env");
 const { pool } = require("../config/db");
 const { minioClient, bucketName } = require("../config/minio");
 const logger = require("../utils/logger");
+const { ROOM_SYSTEM_ADMINS } = require("../utils/socketRooms");
 
 const MONITOR_INTERVAL_MS = 60_000;
 const HTTP_TIMEOUT_MS = 5_000;
@@ -367,7 +368,7 @@ async function recordTargetCheck(target, check, io) {
   }
 
   if (alertToEmit && io) {
-    io.emit("system_alert", alertToEmit);
+    io.to(ROOM_SYSTEM_ADMINS).emit("system_alert", alertToEmit);
   }
 }
 

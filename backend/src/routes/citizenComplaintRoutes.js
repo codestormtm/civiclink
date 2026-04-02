@@ -7,6 +7,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const validate = require("../middleware/validateMiddleware");
 const { createComplaintSchema } = require("../validators/citizenComplaintValidator");
+const attachmentUpload = upload.createUpload({ maxFiles: 1 });
 
 // public / shared lookup
 router.get("/departments", controller.getDepartments);
@@ -26,7 +27,7 @@ router.post(
   "/:complaintId/attachments",
   authMiddleware,
   roleMiddleware(["CITIZEN"]),
-  upload.single("file"),
+  attachmentUpload.single("file"),
   controller.uploadComplaintAttachment
 );
 

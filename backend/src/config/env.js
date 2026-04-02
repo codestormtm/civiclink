@@ -5,6 +5,8 @@ require("dotenv").config();
 
 const runningInDocker = existsSync("/.dockerenv");
 const runningInWsl = Boolean(process.env.WSL_DISTRO_NAME) || os.release().toLowerCase().includes("microsoft");
+const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+const DEV_FRONTEND_PORTS = [5173, 5174, 5175];
 
 function detectWslHostIp() {
   try {
@@ -16,17 +18,90 @@ function detectWslHostIp() {
   }
 }
 
+function isPrivateIpv4(address) {
+  if (!address) {
+    return false;
+  }
+
+  const parts = String(address).split(".").map(Number);
+
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
+    return false;
+  }
+
+  return parts[0] === 10
+    || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
+    || (parts[0] === 192 && parts[1] === 168);
+}
+
+function getLanIpv4Addresses() {
+  const interfaces = os.networkInterfaces();
+  const addresses = [];
+
+  Object.values(interfaces).forEach((entries) => {
+    (entries || []).forEach((entry) => {
+      const family = typeof entry.family === "string"
+        ? entry.family
+        : (entry.family === 4 ? "IPv4" : String(entry.family));
+
+      if (family !== "IPv4" || entry.internal || !isPrivateIpv4(entry.address)) {
+        return;
+      }
+
+      addresses.push(entry.address);
+    });
+  });
+
+  return Array.from(new Set(addresses));
+}
+
+function parseUrl(value) {
+  try {
+    return new URL(String(value || "").trim());
+  } catch {
+    return null;
+  }
+}
+
+function extractHostname(value) {
+  return parseUrl(value)?.hostname?.toLowerCase() || null;
+}
+
+function replaceLoopbackHostname(urlValue, nextHostname) {
+  const parsed = parseUrl(urlValue);
+
+  if (!parsed || !nextHostname || !LOCALHOST_HOSTS.has(parsed.hostname.toLowerCase())) {
+    return urlValue;
+  }
+
+  parsed.hostname = nextHostname;
+  return parsed.toString().replace(/\/$/, "");
+}
+
 const detectedWslHostIp = runningInWsl ? detectWslHostIp() : null;
+const lanIpv4Addresses = getLanIpv4Addresses();
+const preferredLanHost = runningInWsl
+  ? (detectedWslHostIp || lanIpv4Addresses[0] || null)
+  : (lanIpv4Addresses[0] || null);
 const defaultMonitoringHost = process.env.MONITORING_HOST
-  || (runningInDocker ? "host.docker.internal" : (detectedWslHostIp || "localhost"));
+  || (runningInDocker ? "host.docker.internal" : (preferredLanHost || detectedWslHostIp || "localhost"));
 const defaultCitizenPortalUrl = `http://${defaultMonitoringHost}:5173`;
 const defaultAdminPortalUrl = `http://${defaultMonitoringHost}:5174`;
 const defaultWorkerPortalUrl = `http://${defaultMonitoringHost}:5175`;
-const defaultBackendApiUrl = `http://${runningInDocker ? "127.0.0.1" : "localhost"}:${process.env.PORT || 5001}/api/health/app`;
-const resolvedCitizenPortalUrl = process.env.CITIZEN_PORTAL_URL
+const defaultBackendApiUrl = `http://${runningInDocker ? "127.0.0.1" : defaultMonitoringHost}:${process.env.PORT || 5001}/api/health/app`;
+const resolvedBackendApiUrl = replaceLoopbackHostname(
+  process.env.BACKEND_API_URL || defaultBackendApiUrl,
+  runningInDocker ? "127.0.0.1" : defaultMonitoringHost
+);
+const rawCitizenPortalUrl = process.env.CITIZEN_PORTAL_URL
   || (runningInDocker ? defaultCitizenPortalUrl : (process.env.CLIENT_URL || defaultCitizenPortalUrl));
-const resolvedTransparencyPortalUrl = process.env.TRANSPARENCY_PORTAL_URL
-  || `${resolvedCitizenPortalUrl.replace(/\/$/, "")}/public`;
+const resolvedAdminPortalUrl = replaceLoopbackHostname(process.env.ADMIN_PORTAL_URL || defaultAdminPortalUrl, defaultMonitoringHost);
+const resolvedWorkerPortalUrl = replaceLoopbackHostname(process.env.WORKER_PORTAL_URL || defaultWorkerPortalUrl, defaultMonitoringHost);
+const resolvedCitizenPortalUrl = replaceLoopbackHostname(rawCitizenPortalUrl, defaultMonitoringHost);
+const resolvedTransparencyPortalUrl = replaceLoopbackHostname(
+  process.env.TRANSPARENCY_PORTAL_URL || `${resolvedCitizenPortalUrl.replace(/\/$/, "")}/public`,
+  defaultMonitoringHost
+);
 
 const required = [
   "PORT",
@@ -57,14 +132,6 @@ function parseBoolean(value, fallback = false) {
 
 function normalizeMultilineSecret(value) {
   return String(value || "").replace(/\\n/g, "\n");
-}
-
-function parseUrl(value) {
-  try {
-    return new URL(String(value || "").trim());
-  } catch {
-    return null;
-  }
 }
 
 function buildFirebaseServiceAccount() {
@@ -140,6 +207,22 @@ const firebaseProjectId = process.env.FIREBASE_PROJECT_ID
 const defaultMinioPublicUrl = `http://localhost:${process.env.MINIO_PORT || 9000}`;
 const resolvedMinioPublicUrl = process.env.MINIO_PUBLIC_URL || defaultMinioPublicUrl;
 const parsedMinioPublicUrl = parseUrl(resolvedMinioPublicUrl);
+const trustedOriginHosts = Array.from(
+  new Set(
+    [
+      ...LOCALHOST_HOSTS,
+      ...(runningInDocker ? ["host.docker.internal"] : []),
+      ...(detectedWslHostIp ? [detectedWslHostIp] : []),
+      ...lanIpv4Addresses,
+      extractHostname(process.env.CLIENT_URL),
+      extractHostname(resolvedAdminPortalUrl),
+      extractHostname(resolvedWorkerPortalUrl),
+      extractHostname(resolvedCitizenPortalUrl),
+      extractHostname(resolvedTransparencyPortalUrl),
+      extractHostname(resolvedBackendApiUrl),
+    ].filter(Boolean)
+  )
+);
 
 const env = {
   nodeEnv: process.env.NODE_ENV || "development",
@@ -162,11 +245,18 @@ const env = {
 
   monitoring: {
     enabled: parseBoolean(process.env.MONITORING_ENABLED, false),
-    adminPortalUrl: process.env.ADMIN_PORTAL_URL || defaultAdminPortalUrl,
-    workerPortalUrl: process.env.WORKER_PORTAL_URL || defaultWorkerPortalUrl,
+    adminPortalUrl: resolvedAdminPortalUrl,
+    workerPortalUrl: resolvedWorkerPortalUrl,
     citizenPortalUrl: resolvedCitizenPortalUrl,
     transparencyPortalUrl: resolvedTransparencyPortalUrl,
-    backendApiUrl: process.env.BACKEND_API_URL || defaultBackendApiUrl,
+    backendApiUrl: resolvedBackendApiUrl,
+  },
+
+  network: {
+    monitoringHost: defaultMonitoringHost,
+    lanIpv4Addresses,
+    trustedOriginHosts,
+    devFrontendPorts: DEV_FRONTEND_PORTS,
   },
 
   minio: {

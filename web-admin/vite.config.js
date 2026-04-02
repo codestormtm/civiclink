@@ -13,4 +13,7 @@ export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
   },
+  optimizeDeps: {
+    include: ['leaflet', 'react-leaflet'],
+  },
 })
