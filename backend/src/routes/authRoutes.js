@@ -28,6 +28,7 @@ router.post("/register", loginRateLimit, authController.register);
 router.post("/login", loginRateLimit, authController.login);
 router.post("/worker/login", loginRateLimit, authController.workerLogin);
 router.get("/me", authMiddleware, authController.getCurrentSession);
+router.patch("/preferences", authMiddleware, authController.updatePreferences);
 router.post("/firebase/session", loginRateLimit, authController.createFirebaseSession);
 router.post("/forgot-password/lookup", recoveryRateLimit, authController.lookupForgotPassword);
 router.post(

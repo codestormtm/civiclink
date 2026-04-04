@@ -4,7 +4,7 @@ const KEYS = {
   LAST_TRACKED_ID: "citizenPortal.lastTrackedComplaintId",
 };
 
-const VALID_TABS = new Set(["submit", "guide", "track"]);
+const VALID_TABS = new Set(["submit", "guide", "track", "settings"]);
 const MAX_RECENT_REFS = 5;
 
 function getStorage() {

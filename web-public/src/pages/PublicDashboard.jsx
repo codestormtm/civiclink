@@ -9,6 +9,7 @@ import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import api from "../api/api";
+import { CloseIcon, MenuIcon } from "../components/PublicIcons";
 
 const STATUS_COLORS = {
   SUBMITTED: "#6b7280",
@@ -171,6 +172,7 @@ export default function PublicDashboard() {
   const [recentResolved, setRecentResolved] = useState([]);
   const [departmentSort, setDepartmentSort] = useState("total");
   const [activeSection, setActiveSection] = useState("overview");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [bootstrapLoading, setBootstrapLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState("");
   const [filterLoading, setFilterLoading] = useState(true);
@@ -319,6 +321,21 @@ export default function PublicDashboard() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    if (mobileNavOpen) {
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileNavOpen]);
+
   function handleNavClick(event, sectionId) {
     event.preventDefault();
 
@@ -328,6 +345,7 @@ export default function PublicDashboard() {
     section.scrollIntoView({ behavior: "smooth", block: "start" });
     window.history.replaceState(null, "", `#${sectionId}`);
     setActiveSection(sectionId);
+    setMobileNavOpen(false);
   }
 
   function handleDepartmentChange(nextDepartmentId) {
@@ -362,7 +380,17 @@ export default function PublicDashboard() {
             </div>
           </div>
 
-          <nav className="public-anchor-nav" aria-label="Page sections">
+          <button
+            type="button"
+            className="public-menu-toggle"
+            aria-label={mobileNavOpen ? "Close transparency menu" : "Open transparency menu"}
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen((value) => !value)}
+          >
+            {mobileNavOpen ? <CloseIcon size={18} /> : <MenuIcon size={18} />}
+          </button>
+
+          <nav className={`public-anchor-nav ${mobileNavOpen ? "is-open" : ""}`} aria-label="Page sections">
             {SECTION_ITEMS.map((item) => (
               <a
                 key={item.id}
@@ -373,6 +401,17 @@ export default function PublicDashboard() {
                 {item.label}
               </a>
             ))}
+
+            <button
+              type="button"
+              className="public-cta-button public-cta-button-mobile"
+              onClick={() => {
+                window.location.href = "/";
+                setMobileNavOpen(false);
+              }}
+            >
+              Submit a Complaint
+            </button>
           </nav>
 
           <button

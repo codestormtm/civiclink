@@ -1,11 +1,7 @@
+import { WORKER_LANGUAGES } from "../i18n";
+
 const LANGUAGE_STORAGE_KEY = "worker_language";
 const DEFAULT_LANGUAGE = "en";
-
-export const WORKER_LANGUAGES = [
-  { code: "en", label: "English" },
-  { code: "si", label: "සිංහල" },
-  { code: "ta", label: "தமிழ்" },
-];
 
 export function getStoredLanguage() {
   if (typeof window === "undefined") {
@@ -26,7 +22,7 @@ export function setStoredLanguage(language) {
   window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
 }
 
-export function applyLanguage(language, attempt = 0) {
+export function applyLanguage(language) {
   if (typeof window === "undefined") {
     return;
   }
@@ -36,13 +32,4 @@ export function applyLanguage(language, attempt = 0) {
     : DEFAULT_LANGUAGE;
 
   window.document.documentElement.lang = nextLanguage;
-
-  if (typeof window.changeLanguage === "function") {
-    window.changeLanguage(nextLanguage);
-    return;
-  }
-
-  if (attempt < 10) {
-    window.setTimeout(() => applyLanguage(nextLanguage, attempt + 1), 500);
-  }
 }

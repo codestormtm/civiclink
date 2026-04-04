@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "./api/api";
 import socket, { connectWorkerSocket, disconnectWorkerSocket, syncSocketAuth } from "./api/socket";
+import { WorkerI18nProvider, translate } from "./i18n";
 import WorkerToast from "./components/WorkerToast";
 import Login from "./pages/Login";
 import WorkerDashboard from "./pages/WorkerDashboard";
+import WorkerLanguageSetup from "./pages/WorkerLanguageSetup";
+import WorkerSettings from "./pages/WorkerSettings";
 import WorkerTaskDetail from "./pages/WorkerTaskDetail";
-import { clearAuth, getDepartment, getName, getRole, getToken } from "./utils/auth";
+import {
+  clearAuth,
+  getDepartment,
+  getName,
+  getPreferredLanguage,
+  getRole,
+  getToken,
+  setAuth,
+  setPreferredLanguage,
+} from "./utils/auth";
 import { applyLanguage, getStoredLanguage, setStoredLanguage } from "./utils/language";
 
 function buildStoredUser() {
@@ -13,6 +25,7 @@ function buildStoredUser() {
     name: getName(),
     role: getRole(),
     department_name: getDepartment(),
+    preferred_language: getPreferredLanguage() || null,
   };
 }
 
@@ -32,7 +45,8 @@ export default function App() {
   const [bootState, setBootState] = useState("booting");
   const [user, setUser] = useState(() => buildStoredUser());
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [language, setLanguage] = useState(() => getStoredLanguage());
+  const [activeView, setActiveView] = useState("dashboard");
+  const [language, setLanguage] = useState(() => getPreferredLanguage() || getStoredLanguage());
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
   const [toast, setToast] = useState(null);
 
@@ -51,12 +65,19 @@ export default function App() {
     setToast(null);
   }, []);
 
+  const applySelectedLanguage = useCallback((nextLanguage) => {
+    setStoredLanguage(nextLanguage);
+    setLanguage(nextLanguage);
+  }, []);
+
   useEffect(() => {
     let active = true;
 
     async function bootstrapSession() {
       if (!getToken()) {
-        if (active) setBootState("guest");
+        if (active) {
+          setBootState("guest");
+        }
         return;
       }
 
@@ -75,7 +96,12 @@ export default function App() {
 
         if (active) {
           setUser(nextUser);
-          setBootState("authed");
+          const nextLanguage = nextUser.preferred_language || getPreferredLanguage() || getStoredLanguage();
+          if (nextLanguage) {
+            setStoredLanguage(nextLanguage);
+            setLanguage(nextLanguage);
+          }
+          setBootState(nextUser.preferred_language ? "authed" : "needs_language");
         }
       } catch {
         clearAuth();
@@ -86,7 +112,7 @@ export default function App() {
       }
     }
 
-    bootstrapSession();
+    void bootstrapSession();
 
     return () => {
       active = false;
@@ -95,7 +121,7 @@ export default function App() {
 
   useEffect(() => {
     applyLanguage(language);
-  }, [language, bootState, selectedTaskId]);
+  }, [language]);
 
   useEffect(() => {
     if (!toast) {
@@ -119,8 +145,8 @@ export default function App() {
 
     const handleTaskAssigned = (payload) => {
       const taskId = resolveTaskId(payload);
-      const title = "New task assigned";
-      const text = "A new complaint has been assigned to you.";
+      const title = translate(language, "toast.newTaskTitle");
+      const text = translate(language, "toast.newTaskText");
 
       pushToast({ title, text, taskId });
 
@@ -129,7 +155,7 @@ export default function App() {
         && "Notification" in window
         && window.Notification.permission === "granted"
       ) {
-        const notification = new window.Notification("CivicLink Worker Portal", {
+        const notification = new window.Notification(translate(language, "portal.worker"), {
           body: text,
           tag: taskId ? `worker-task-${taskId}` : "worker-task",
         });
@@ -146,8 +172,8 @@ export default function App() {
 
     const handleStatusUpdated = (payload) => {
       pushToast({
-        title: "Task updated",
-        text: "Your latest task update was saved.",
+        title: translate(language, "toast.updatedTitle"),
+        text: translate(language, "toast.updatedText"),
         type: "success",
         taskId: resolveTaskId(payload),
       });
@@ -160,11 +186,28 @@ export default function App() {
       socket.off("task_assigned", handleTaskAssigned);
       socket.off("status_updated", handleStatusUpdated);
     };
-  }, [bootState, openTask, pushToast]);
+  }, [bootState, language, openTask, pushToast]);
 
-  const handleLoggedIn = () => {
-    setUser(buildStoredUser());
-    setBootState("authed");
+  const handleLoggedIn = (sessionPayload) => {
+    const nextUser = {
+      name: sessionPayload?.name || getName(),
+      role: sessionPayload?.role || getRole(),
+      department_name: sessionPayload?.department_name || getDepartment(),
+      preferred_language: sessionPayload?.preferred_language || null,
+    };
+
+    setUser(nextUser);
+    setSelectedTaskId(null);
+    setActiveView("dashboard");
+
+    if (sessionPayload?.preferred_language) {
+      setPreferredLanguage(sessionPayload.preferred_language);
+      applySelectedLanguage(sessionPayload.preferred_language);
+      setBootState("authed");
+    } else {
+      setBootState("needs_language");
+    }
+
     syncSocketAuth();
   };
 
@@ -172,21 +215,40 @@ export default function App() {
     disconnectWorkerSocket();
     clearAuth();
     setSelectedTaskId(null);
+    setActiveView("dashboard");
     setUser(buildStoredUser());
     setBootState("guest");
   };
 
-  const handleLanguageChange = useCallback((nextLanguage) => {
-    setStoredLanguage(nextLanguage);
-    setLanguage(nextLanguage);
-  }, []);
+  const handleSavePreferredLanguage = useCallback(async (nextLanguage) => {
+    const res = await api.patch("/auth/preferences", { preferred_language: nextLanguage });
+    const updatedUser = res.data?.data;
+
+    setAuth({
+      token: getToken(),
+      role: updatedUser?.role || user.role,
+      name: updatedUser?.name || user.name,
+      department_name: updatedUser?.department_name || user.department_name,
+      preferred_language: updatedUser?.preferred_language || nextLanguage,
+    });
+
+    setPreferredLanguage(updatedUser?.preferred_language || nextLanguage);
+    applySelectedLanguage(updatedUser?.preferred_language || nextLanguage);
+    setUser((current) => ({
+      ...current,
+      ...updatedUser,
+      preferred_language: updatedUser?.preferred_language || nextLanguage,
+    }));
+    setBootState("authed");
+    setActiveView("dashboard");
+  }, [applySelectedLanguage, user.department_name, user.name, user.role]);
 
   const handleEnableNotifications = useCallback(async () => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       setNotificationPermission("unsupported");
       pushToast({
-        title: "Alerts unavailable",
-        text: "This browser does not support notifications.",
+        title: translate(language, "notifications.unavailableTitle"),
+        text: translate(language, "notifications.unavailableText"),
       });
       return;
     }
@@ -196,8 +258,8 @@ export default function App() {
 
     if (permission === "granted") {
       pushToast({
-        title: "Alerts enabled",
-        text: "You will now see browser alerts for new tasks.",
+        title: translate(language, "notifications.enabledTitle"),
+        text: translate(language, "notifications.enabledText"),
         type: "success",
       });
       return;
@@ -205,80 +267,99 @@ export default function App() {
 
     if (permission === "denied") {
       pushToast({
-        title: "Alerts blocked",
-        text: "Browser alerts are blocked. You can still use in-app notifications.",
+        title: translate(language, "notifications.blockedTitle"),
+        text: translate(language, "notifications.blockedText"),
       });
       return;
     }
 
     pushToast({
-      title: "Alerts not enabled",
-      text: "You can enable browser alerts later from the header button.",
+      title: translate(language, "notifications.notEnabledTitle"),
+      text: translate(language, "notifications.notEnabledText"),
     });
-  }, [pushToast]);
-
-  if (bootState === "booting") {
-    return (
-      <div className="worker-auth-shell">
-        <div className="worker-auth-card">
-          <div className="worker-brand worker-brand-auth">
-            <div className="worker-brand-icon">C</div>
-            <div className="worker-brand-copy notranslate" translate="no">
-              <div className="worker-brand-name">CivicLink</div>
-              <div className="worker-brand-sub">Field Operations Portal</div>
-            </div>
-          </div>
-          <div className="worker-auth-kicker">Checking session</div>
-          <h1>Restoring your worker workspace...</h1>
-        </div>
-        <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
-      </div>
-    );
-  }
-
-  if (bootState !== "authed") {
-    return (
-      <>
-        <Login
-          onLoggedIn={handleLoggedIn}
-          language={language}
-          onLanguageChange={handleLanguageChange}
-        />
-        <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
-      </>
-    );
-  }
-
-  if (selectedTaskId) {
-    return (
-      <>
-        <WorkerTaskDetail
-          taskId={selectedTaskId}
-          user={user}
-          goBack={() => setSelectedTaskId(null)}
-          onLogout={handleLogout}
-          language={language}
-          onLanguageChange={handleLanguageChange}
-          notificationPermission={notificationPermission}
-          onEnableNotifications={handleEnableNotifications}
-        />
-        <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
-      </>
-    );
-  }
+  }, [language, pushToast]);
 
   return (
-    <>
-      <WorkerDashboard
-        user={user}
-        openTask={openTask}
-        onLogout={handleLogout}
-        language={language}
-        onLanguageChange={handleLanguageChange}
-        notificationPermission={notificationPermission}
-        onEnableNotifications={handleEnableNotifications}
-      />
-      <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
-    </>
+    <WorkerI18nProvider language={language}>
+      {bootState === "booting" ? (
+        <div className="worker-auth-shell">
+          <div className="worker-auth-card">
+            <div className="worker-brand worker-brand-auth">
+              <div className="worker-brand-icon">C</div>
+              <div className="worker-brand-copy notranslate" translate="no">
+                <div className="worker-brand-name">{translate(language, "portal.brand")}</div>
+                <div className="worker-brand-sub">{translate(language, "portal.fieldOperations")}</div>
+              </div>
+            </div>
+            <div className="worker-auth-kicker">{translate(language, "boot.kicker")}</div>
+            <h1>{translate(language, "boot.title")}</h1>
+          </div>
+          <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
+        </div>
+      ) : null}
+
+      {bootState === "guest" ? (
+        <>
+          <Login onLoggedIn={handleLoggedIn} />
+          <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
+        </>
+      ) : null}
+
+      {bootState === "needs_language" ? (
+        <>
+          <WorkerLanguageSetup
+            language={language}
+            onLanguageChange={applySelectedLanguage}
+            onContinue={handleSavePreferredLanguage}
+          />
+          <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
+        </>
+      ) : null}
+
+      {bootState === "authed" && activeView === "settings" ? (
+        <>
+          <WorkerSettings
+            user={user}
+            language={language}
+            onLanguageChange={applySelectedLanguage}
+            onSave={handleSavePreferredLanguage}
+            onBack={() => setActiveView("dashboard")}
+            onLogout={handleLogout}
+            notificationPermission={notificationPermission}
+            onEnableNotifications={handleEnableNotifications}
+          />
+          <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
+        </>
+      ) : null}
+
+      {bootState === "authed" && activeView !== "settings" && selectedTaskId ? (
+        <>
+          <WorkerTaskDetail
+            taskId={selectedTaskId}
+            user={user}
+            goBack={() => setSelectedTaskId(null)}
+            onLogout={handleLogout}
+            onOpenSettings={() => setActiveView("settings")}
+            notificationPermission={notificationPermission}
+            onEnableNotifications={handleEnableNotifications}
+          />
+          <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
+        </>
+      ) : null}
+
+      {bootState === "authed" && activeView !== "settings" && !selectedTaskId ? (
+        <>
+          <WorkerDashboard
+            user={user}
+            openTask={openTask}
+            onLogout={handleLogout}
+            onOpenSettings={() => setActiveView("settings")}
+            notificationPermission={notificationPermission}
+            onEnableNotifications={handleEnableNotifications}
+          />
+          <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
+        </>
+      ) : null}
+    </WorkerI18nProvider>
   );
 }

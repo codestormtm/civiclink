@@ -1,32 +1,26 @@
-const LANGS = [
-  { code: "en", label: "English" },
-  { code: "ta", label: "தமிழ்" },
-  { code: "si", label: "සිංහල" },
-];
+import { CITIZEN_LANGUAGES, useCitizenI18n } from "../i18n";
 
 export default function LanguageSelector({ value, onChange, disabled }) {
+  const { t } = useCitizenI18n();
+
+  const labels = {
+    en: t("language.english"),
+    si: t("language.sinhala"),
+    ta: t("language.tamil"),
+  };
+
   return (
-    <div style={{ display: "flex", gap: 6 }}>
-      {LANGS.map((l) => (
+    <div className="citizen-language-selector">
+      {CITIZEN_LANGUAGES.map((language) => (
         <button
-          key={l.code}
-          onClick={() => onChange(l.code)}
+          key={language.code}
+          type="button"
+          onClick={() => onChange(language.code)}
           disabled={disabled}
-          style={{
-            padding: "5px 12px",
-            fontSize: 12,
-            fontWeight: 600,
-            borderRadius: 20,
-            border: value === l.code ? "1px solid #6a0f2a" : "1px solid var(--sl-line)",
-            background: value === l.code ? "var(--sl-maroon-900)" : "var(--sl-white)",
-            color: value === l.code ? "var(--sl-white)" : "var(--sl-ink-700)",
-            cursor: disabled ? "not-allowed" : "pointer",
-            opacity: disabled ? 0.6 : 1,
-            fontFamily: "inherit",
-            boxShadow: value === l.code ? "0 8px 18px rgba(138, 21, 56, 0.16)" : "none",
-          }}
+          className={`citizen-language-btn ${value === language.code ? "is-active" : ""}`}
+          aria-pressed={value === language.code}
         >
-          {l.label}
+          {labels[language.code] || language.label}
         </button>
       ))}
     </div>

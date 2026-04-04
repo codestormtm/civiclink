@@ -17,14 +17,29 @@ const allowedDevPorts = new Set(env.network.devFrontendPorts.map(String));
   }
 });
 
+function isPrivateIpv4Host(hostname) {
+  const parts = String(hostname || "").split(".").map(Number);
+
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
+    return false;
+  }
+
+  return parts[0] === 10
+    || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
+    || (parts[0] === 192 && parts[1] === 168);
+}
+
 function isAllowedDevOrigin(origin) {
   try {
     const parsed = new URL(origin);
     const normalizedHostname = parsed.hostname.toLowerCase();
     const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
 
-    return env.network.trustedOriginHosts.includes(normalizedHostname)
-      && allowedDevPorts.has(port);
+    const isKnownTrustedHost = env.network.trustedOriginHosts.includes(normalizedHostname);
+    const isPrivateLanHost = env.nodeEnv !== "production" && isPrivateIpv4Host(normalizedHostname);
+
+    return allowedDevPorts.has(port)
+      && (isKnownTrustedHost || isPrivateLanHost);
   } catch {
     return false;
   }
@@ -44,7 +59,9 @@ function resolveCorsOrigin(origin, callback) {
     return;
   }
 
-  callback(new Error(`CORS blocked for origin: ${origin}`));
+  const error = new Error(`CORS blocked for origin: ${origin}`);
+  error.statusCode = 403;
+  callback(error);
 }
 
 module.exports = {

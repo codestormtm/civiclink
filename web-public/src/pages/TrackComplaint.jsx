@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 import api from "../api/api";
+import { useCitizenI18n } from "../i18n";
+import {
+  CloseIcon,
+  CopyIcon,
+  DownloadIcon,
+  SearchIcon,
+  TrackIcon,
+} from "../components/PublicIcons";
 import {
   getLastTrackedComplaintId,
   getRecentComplaintRefs,
@@ -9,30 +17,6 @@ import {
 } from "../utils/portalState";
 
 const STATUS_ORDER = ["SUBMITTED", "ASSIGNED", "IN_PROGRESS", "RESOLVED"];
-
-const STATUS_META = {
-  SUBMITTED: { label: "Submitted", color: "#1e40af", bg: "#eff6ff" },
-  ASSIGNED: { label: "Assigned", color: "#5b21b6", bg: "#f5f3ff" },
-  IN_PROGRESS: { label: "In Progress", color: "#164e63", bg: "#ecfeff" },
-  RESOLVED: { label: "Resolved", color: "#065f46", bg: "#ecfdf5" },
-  CLOSED: { label: "Closed", color: "#374151", bg: "#f3f4f6" },
-  REJECTED_WRONG_DEPARTMENT: { label: "Rejected", color: "#991b1b", bg: "#fef2f2" },
-};
-
-const STATUS_DESC = {
-  SUBMITTED: "Your complaint has been received and is awaiting review.",
-  ASSIGNED: "A field worker has been assigned to your complaint.",
-  IN_PROGRESS: "Work is currently underway on your complaint.",
-  RESOLVED: "Your complaint has been resolved. Thank you.",
-  CLOSED: "This complaint has been closed.",
-  REJECTED_WRONG_DEPARTMENT: "This complaint was redirected or rejected. See timeline for details.",
-};
-
-function getAttachmentRoleLabel(role) {
-  if (role === "BEFORE") return "Before";
-  if (role === "AFTER") return "After";
-  return "General";
-}
 
 function isImageAttachment(attachment) {
   if (attachment?.is_image) {
@@ -66,139 +50,56 @@ async function downloadProtectedAttachment(attachment, fallbackName) {
   window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
 }
 
-function StatusSteps({ status }) {
+function StatusSteps({ status, meta, t }) {
   const currentIndex = STATUS_ORDER.indexOf(status);
   const isRejected = status === "REJECTED_WRONG_DEPARTMENT" || status === "CLOSED";
 
   return (
-    <div style={{ margin: "20px 0" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+    <div className="track-status-steps">
+      <div className="track-status-steps-row">
         {STATUS_ORDER.map((step, index) => {
           const done = !isRejected && index <= currentIndex;
           const active = !isRejected && index === currentIndex;
           return (
-            <div key={step} style={{ display: "flex", alignItems: "center", flex: 1 }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    background: done ? "#1a56db" : "#e5e7eb",
-                    border: active ? "3px solid #0e9f6e" : "3px solid transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: done ? "#fff" : "#9ca3af",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {done ? (index === currentIndex && !isRejected ? index + 1 : "✓") : index + 1}
+            <div key={step} className="track-status-step">
+              <div className="track-status-step-main">
+                <div className={`track-status-step-dot ${done ? "is-done" : ""} ${active ? "is-active" : ""}`}>
+                  {done ? (index === currentIndex && !isRejected ? index + 1 : "\u2713") : index + 1}
                 </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    marginTop: 5,
-                    fontWeight: 600,
-                    color: done ? "#1a56db" : "#9ca3af",
-                    textAlign: "center",
-                    letterSpacing: "0.4px",
-                    textTransform: "uppercase",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {STATUS_META[step].label}
+                <div className={`track-status-step-label ${done ? "is-done" : ""}`}>
+                  {meta[step].label}
                 </div>
               </div>
-              {index < STATUS_ORDER.length - 1 && (
-                <div
-                  style={{
-                    height: 3,
-                    flex: 1,
-                    marginBottom: 18,
-                    background: !isRejected && index < currentIndex ? "#1a56db" : "#e5e7eb",
-                    transition: "background 0.2s",
-                  }}
-                />
-              )}
+              {index < STATUS_ORDER.length - 1 ? (
+                <div className={`track-status-step-line ${!isRejected && index < currentIndex ? "is-done" : ""}`} />
+              ) : null}
             </div>
           );
         })}
       </div>
 
-      {isRejected && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: "8px 14px",
-            background: "#fee2e2",
-            borderRadius: 4,
-            fontSize: 12,
-            color: "#b91c1c",
-            fontWeight: 600,
-            border: "1px solid #fecaca",
-          }}
-        >
-          {STATUS_META[status]?.label || status}
-        </div>
-      )}
+      {isRejected ? (
+        <div className="track-status-rejected">{status === "CLOSED" ? t("status.closed") : t("status.rejected")}</div>
+      ) : null}
     </div>
   );
 }
 
-function Timeline({ events }) {
-  if (!events || events.length === 0) return null;
+function Timeline({ events, formatDateTime, t }) {
+  if (!events || events.length === 0) {
+    return null;
+  }
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.7px",
-          color: "#6b7280",
-          marginBottom: 14,
-        }}
-      >
-        Complaint Timeline
-      </div>
-      <div style={{ position: "relative", paddingLeft: 24 }}>
-        <div
-          style={{
-            position: "absolute",
-            left: 7,
-            top: 0,
-            bottom: 0,
-            width: 2,
-            background: "#e5e7eb",
-          }}
-        />
+    <div className="track-timeline">
+      <div className="track-timeline-title">{t("track.timeline")}</div>
+      <div className="track-timeline-list">
         {events.map((event, index) => (
-          <div key={index} style={{ position: "relative", marginBottom: 20 }}>
-            <div
-              style={{
-                position: "absolute",
-                left: -21,
-                top: 2,
-                width: 14,
-                height: 14,
-                borderRadius: "50%",
-                background: "#1a56db",
-                border: "2px solid #0e9f6e",
-              }}
-            />
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#0d3b2e" }}>
-              {event.event}
-            </div>
-            <div style={{ fontSize: 12, color: "#6b7280", margin: "2px 0" }}>
-              {event.description}
-            </div>
-            <div style={{ fontSize: 11, color: "#9ca3af" }}>
-              {new Date(event.timestamp).toLocaleString()}
-            </div>
+          <div key={index} className="track-timeline-item">
+            <div className="track-timeline-marker" />
+            <div className="track-timeline-event">{event.event}</div>
+            <div className="track-timeline-desc">{event.description}</div>
+            <div className="track-timeline-date">{formatDateTime(event.timestamp)}</div>
           </div>
         ))}
       </div>
@@ -207,6 +108,7 @@ function Timeline({ events }) {
 }
 
 export default function TrackComplaint() {
+  const { t, formatDateTime, formatStatusLabel } = useCitizenI18n();
   const [complaintId, setComplaintId] = useState(() => getLastTrackedComplaintId());
   const [recentRefs, setRecentRefs] = useState(() => getRecentComplaintRefs());
   const [result, setResult] = useState(null);
@@ -228,7 +130,7 @@ export default function TrackComplaint() {
       return () => {};
     }
 
-    (async () => {
+    void (async () => {
       const nextPreviewUrls = {};
 
       await Promise.all(
@@ -241,7 +143,7 @@ export default function TrackComplaint() {
           } catch {
             nextPreviewUrls[attachment.id] = "";
           }
-        })
+        }),
       );
 
       if (active) {
@@ -254,6 +156,30 @@ export default function TrackComplaint() {
       objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
     };
   }, [result]);
+
+  const statusMeta = {
+    SUBMITTED: { label: t("status.submitted"), color: "#1e40af", bg: "#eff6ff" },
+    ASSIGNED: { label: t("status.assigned"), color: "#5b21b6", bg: "#f5f3ff" },
+    IN_PROGRESS: { label: t("status.inProgress"), color: "#164e63", bg: "#ecfeff" },
+    RESOLVED: { label: t("status.resolved"), color: "#065f46", bg: "#ecfdf5" },
+    CLOSED: { label: t("status.closed"), color: "#374151", bg: "#f3f4f6" },
+    REJECTED_WRONG_DEPARTMENT: { label: t("status.rejected"), color: "#991b1b", bg: "#fef2f2" },
+  };
+
+  const statusDescriptions = {
+    SUBMITTED: t("status.desc.submitted"),
+    ASSIGNED: t("status.desc.assigned"),
+    IN_PROGRESS: t("status.desc.inProgress"),
+    RESOLVED: t("status.desc.resolved"),
+    CLOSED: t("status.desc.closed"),
+    REJECTED_WRONG_DEPARTMENT: t("status.desc.rejected"),
+  };
+
+  const attachmentRoleLabels = {
+    BEFORE: t("attachment.before"),
+    AFTER: t("attachment.after"),
+    GENERAL: t("attachment.general"),
+  };
 
   const syncRecentRefs = () => {
     setRecentRefs(getRecentComplaintRefs());
@@ -285,7 +211,7 @@ export default function TrackComplaint() {
       syncRecentRefs();
     } catch (err) {
       const status = err?.response?.status;
-      const message = err?.response?.data?.error || err?.response?.data?.message || "Complaint not found. Please check your ID.";
+      const message = err?.response?.data?.error || err?.response?.data?.message || t("track.notFound");
 
       if (status === 404 && options.fromStored) {
         pruneStoredComplaintId(normalizedId);
@@ -298,42 +224,17 @@ export default function TrackComplaint() {
   };
 
   useEffect(() => {
-    const restoreLastTrackedComplaint = async () => {
-      const lastTrackedId = getLastTrackedComplaintId();
-      if (!lastTrackedId) {
-        return;
-      }
+    const lastTrackedId = getLastTrackedComplaintId();
+    if (!lastTrackedId) {
+      return;
+    }
 
-      try {
-        setError("");
-        setResult(null);
-        setLoading(true);
-        setComplaintId(lastTrackedId);
-
-        const res = await api.get(`/citizen-complaints/track/${lastTrackedId}`);
-        setResult(res.data.data);
-        rememberTrackedComplaint(lastTrackedId);
-        setRecentRefs(getRecentComplaintRefs());
-      } catch (err) {
-        if (err?.response?.status === 404) {
-          removeRecentComplaintRef(lastTrackedId);
-          if (getLastTrackedComplaintId() === lastTrackedId) {
-            setLastTrackedComplaintId("");
-          }
-          setRecentRefs(getRecentComplaintRefs());
-        }
-        setError(err?.response?.data?.error || err?.response?.data?.message || "Complaint not found. Please check your ID.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    restoreLastTrackedComplaint();
+    void trackComplaint(lastTrackedId, { fromStored: true });
   }, []);
 
   const handleKeyDown = (event) => {
     if (event.key === "Enter") {
-      trackComplaint();
+      void trackComplaint();
     }
   };
 
@@ -348,14 +249,14 @@ export default function TrackComplaint() {
       setDownloadingAttachmentId(attachment.id);
       await downloadProtectedAttachment(attachment, fallbackName);
     } catch (err) {
-      setError(err?.response?.data?.error || "Failed to download attachment.");
+      setError(err?.response?.data?.error || t("track.downloadFailed"));
     } finally {
       setDownloadingAttachmentId("");
     }
   };
 
   const complaint = result?.complaint;
-  const meta = complaint ? (STATUS_META[complaint.status] || STATUS_META.SUBMITTED) : null;
+  const meta = complaint ? (statusMeta[complaint.status] || statusMeta.SUBMITTED) : null;
   const imageAttachments = (result?.attachments || []).filter(isImageAttachment);
   const fileAttachments = (result?.attachments || []).filter((attachment) => !isImageAttachment(attachment));
   const selectedImage = imageAttachments.find((attachment) => attachment.id === selectedImageId) || null;
@@ -364,167 +265,107 @@ export default function TrackComplaint() {
   return (
     <div className="container">
       <div className="page-heading">
-        <h2>Track Your Complaint</h2>
-        <p>Enter your complaint ID to view its current status and history.</p>
+        <h2>{t("track.heading")}</h2>
+        <p>{t("track.subtitle")}</p>
       </div>
 
       <div className="card">
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div className="track-search-row">
           <input
             type="text"
-            placeholder="Paste your complaint ID here"
+            placeholder={t("track.placeholder")}
             value={complaintId}
             onChange={(event) => setComplaintId(event.target.value)}
             onKeyDown={handleKeyDown}
-            style={{ flex: 1, minWidth: 260 }}
+            className="track-search-input"
           />
           <button
             onClick={() => trackComplaint()}
             disabled={loading}
-            style={{
-              background: "#1a56db",
-              color: "#fff",
-              border: "2px solid #1a56db",
-              borderRadius: 8,
-              padding: "10px 22px",
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              opacity: loading ? 0.7 : 1,
-            }}
+            className="citizen-action-btn is-primary track-search-btn"
           >
-            {loading ? "Searching..." : "Track"}
+            <SearchIcon size={16} />
+            {loading ? t("common.searching") : t("track.button")}
           </button>
         </div>
 
-        {recentRefs.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                color: "#6b7280",
-                marginBottom: 8,
-              }}
-            >
-              Recent complaint IDs
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {recentRefs.length > 0 ? (
+          <div className="track-recent-refs">
+            <div className="track-recent-refs-title">{t("track.recent")}</div>
+            <div className="track-recent-refs-list">
               {recentRefs.map((ref) => (
                 <button
                   key={ref}
                   type="button"
                   onClick={() => trackComplaint(ref, { fromStored: true })}
-                  style={{
-                    width: "auto",
-                    padding: "7px 12px",
-                    borderRadius: 999,
-                    border: "1px solid var(--sl-line)",
-                    background: ref === complaintId ? "#fff0c7" : "#fff",
-                    color: "var(--sl-ink-900)",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    fontFamily: "monospace",
-                  }}
+                  className={`track-ref-chip ${ref === complaintId ? "is-active" : ""}`}
                 >
                   {ref}
                 </button>
               ))}
             </div>
           </div>
-        )}
+        ) : null}
 
-        {error && <div className="alert alert-error" style={{ marginTop: 14 }}>{error}</div>}
+        {error ? <div className="alert alert-error" style={{ marginTop: 14 }}>{error}</div> : null}
       </div>
 
-      {result && complaint && (
+      {result && complaint ? (
         <div className="card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 12, flexWrap: "wrap" }}>
-            <h3 style={{ margin: 0 }}>{complaint.title}</h3>
-            <span
-              style={{
-                background: meta.bg,
-                color: meta.color,
-                padding: "4px 12px",
-                borderRadius: 3,
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.6px",
-                textTransform: "uppercase",
-                whiteSpace: "nowrap",
-              }}
-            >
+          <div className="track-result-header">
+            <div className="track-result-title-wrap">
+              <div className="track-result-kicker">
+                <TrackIcon size={15} />
+                {t("track.status")}
+              </div>
+              <h3 className="track-result-title">{complaint.title}</h3>
+            </div>
+            <span className="track-result-badge" style={{ background: meta.bg, color: meta.color }}>
               {meta.label}
             </span>
           </div>
 
-          <div
-            style={{
-              background: "#f8faf9",
-              border: "1px solid #dde3ea",
-              borderLeft: `4px solid ${meta.color}`,
-              borderRadius: 4,
-              padding: "10px 14px",
-              fontSize: 13,
-              color: "#374151",
-              marginBottom: 16,
-            }}
-          >
-            {STATUS_DESC[complaint.status]}
+          <div className="track-result-summary" style={{ borderLeftColor: meta.color }}>
+            {statusDescriptions[complaint.status]}
           </div>
 
-          <StatusSteps status={complaint.status} />
+          <StatusSteps status={complaint.status} meta={statusMeta} t={t} />
 
           <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: 14 }}>
             {[
-              ["Complaint ID", (
-                <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontFamily: "monospace", fontSize: 12 }}>{complaint.id}</span>
-                  <button
-                    onClick={copyId}
-                    style={{
-                      background: copied ? "#dcfce7" : "#f1f5f9",
-                      border: "1px solid #dde3ea",
-                      color: copied ? "#15803d" : "#374151",
-                      padding: "2px 10px",
-                      borderRadius: 3,
-                      fontSize: 11,
-                      cursor: "pointer",
-                      fontWeight: 600,
-                      width: "auto",
-                    }}
-                  >
-                    {copied ? "Copied!" : "Copy"}
+              ["track.summaryId", (
+                <span className="track-id-row">
+                  <span className="track-id-value">{complaint.id}</span>
+                  <button onClick={copyId} className={`track-copy-btn ${copied ? "is-copied" : ""}`}>
+                    <CopyIcon size={14} />
+                    {copied ? t("common.copied") : t("common.copy")}
                   </button>
                 </span>
               )],
-              ["Department", complaint.department_name],
-              ["Type", complaint.complaint_type],
-              ["Description", complaint.description],
-              ["Submitted", new Date(complaint.submitted_at).toLocaleString()],
-              ...(complaint.resolved_at ? [["Resolved", new Date(complaint.resolved_at).toLocaleString()]] : []),
-              ...(complaint.rejection_reason ? [["Rejection Reason", complaint.rejection_reason]] : []),
-            ].map(([label, value]) => (
-              <div key={label} className="result-row">
-                <strong>{label}</strong>
+              ["track.summaryDepartment", complaint.department_name],
+              ["track.summaryType", complaint.complaint_type],
+              ["track.summaryDescription", complaint.description],
+              ["track.summarySubmitted", formatDateTime(complaint.submitted_at)],
+              ...(complaint.resolved_at ? [["track.summaryResolved", formatDateTime(complaint.resolved_at)]] : []),
+              ...(complaint.rejection_reason ? [["track.summaryRejection", complaint.rejection_reason]] : []),
+            ].map(([labelKey, value]) => (
+              <div key={labelKey} className="result-row">
+                <strong>{t(labelKey)}</strong>
                 <span>{value}</span>
               </div>
             ))}
           </div>
 
-          {result.timeline && result.timeline.length > 0 && (
+          {result.timeline && result.timeline.length > 0 ? (
             <div style={{ borderTop: "1px solid #f1f5f9", marginTop: 8 }}>
-              <Timeline events={result.timeline} />
+              <Timeline events={result.timeline} formatDateTime={formatDateTime} t={t} />
             </div>
-          )}
+          ) : null}
 
           <div className="attachments-section">
-            <div className="attachments-title">Image Gallery</div>
+            <div className="attachments-title">{t("track.imageGallery")}</div>
             {imageAttachments.length === 0 ? (
-              <p className="empty-text">No image attachments uploaded.</p>
+              <p className="empty-text">{t("track.imageEmpty")}</p>
             ) : (
               <div className="attachment-gallery-grid">
                 {imageAttachments.map((attachment, index) => {
@@ -543,13 +384,13 @@ export default function TrackComplaint() {
                           className="attachment-gallery-image"
                         />
                       ) : (
-                        <div className="attachment-gallery-placeholder">Loading preview...</div>
+                        <div className="attachment-gallery-placeholder">{t("common.loading")}</div>
                       )}
                       <div className="attachment-gallery-meta">
                         <span className={`attachment-role-badge attachment-role-badge-${attachment.attachment_role.toLowerCase()}`}>
-                          {getAttachmentRoleLabel(attachment.attachment_role)}
+                          {attachmentRoleLabels[attachment.attachment_role] || t("attachment.general")}
                         </span>
-                        <span>{new Date(attachment.created_at).toLocaleString()}</span>
+                        <span>{formatDateTime(attachment.created_at)}</span>
                       </div>
                     </button>
                   );
@@ -559,9 +400,9 @@ export default function TrackComplaint() {
           </div>
 
           <div className="attachments-section">
-            <div className="attachments-title">Other Attachments</div>
+            <div className="attachments-title">{t("track.otherAttachments")}</div>
             {fileAttachments.length === 0 ? (
-              <p className="empty-text">No non-image attachments uploaded.</p>
+              <p className="empty-text">{t("track.fileEmpty")}</p>
             ) : (
               <div className="attachment-file-list">
                 {fileAttachments.map((attachment, index) => {
@@ -570,10 +411,10 @@ export default function TrackComplaint() {
                     <div key={attachment.id} className="attachment-file-row">
                       <div className="attachment-file-copy">
                         <span className={`attachment-role-badge attachment-role-badge-${attachment.attachment_role.toLowerCase()}`}>
-                          {getAttachmentRoleLabel(attachment.attachment_role)}
+                          {attachmentRoleLabels[attachment.attachment_role] || t("attachment.general")}
                         </span>
                         <strong>{fallbackName}</strong>
-                        <span>{attachment.file_type || "Unknown file type"}</span>
+                        <span>{attachment.file_type || t("attachment.unknownType")}</span>
                       </div>
                       <button
                         type="button"
@@ -581,7 +422,8 @@ export default function TrackComplaint() {
                         disabled={downloadingAttachmentId === attachment.id}
                         onClick={() => downloadAttachment(attachment, fallbackName)}
                       >
-                        {downloadingAttachmentId === attachment.id ? "Downloading..." : "Download"}
+                        <DownloadIcon size={16} />
+                        {downloadingAttachmentId === attachment.id ? t("common.downloading") : t("common.download")}
                       </button>
                     </div>
                   );
@@ -590,9 +432,9 @@ export default function TrackComplaint() {
             )}
           </div>
         </div>
-      )}
+      ) : null}
 
-      {selectedImage && selectedImageUrl && (
+      {selectedImage && selectedImageUrl ? (
         <div className="attachment-lightbox-backdrop" onClick={() => setSelectedImageId(null)}>
           <div className="attachment-lightbox-card" onClick={(event) => event.stopPropagation()}>
             <button
@@ -600,7 +442,8 @@ export default function TrackComplaint() {
               className="attachment-lightbox-close"
               onClick={() => setSelectedImageId(null)}
             >
-              Close
+              <CloseIcon size={16} />
+              {t("common.close")}
             </button>
             <img
               src={selectedImageUrl}
@@ -609,13 +452,13 @@ export default function TrackComplaint() {
             />
             <div className="attachment-gallery-meta">
               <span className={`attachment-role-badge attachment-role-badge-${selectedImage.attachment_role.toLowerCase()}`}>
-                {getAttachmentRoleLabel(selectedImage.attachment_role)}
+                {attachmentRoleLabels[selectedImage.attachment_role] || t("attachment.general")}
               </span>
-              <span>{new Date(selectedImage.created_at).toLocaleString()}</span>
+              <span>{formatDateTime(selectedImage.created_at)}</span>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

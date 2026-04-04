@@ -1,6 +1,9 @@
 import { History } from "lucide-react";
+import { useWorkerI18n } from "../i18n";
 
 export default function ComplaintTimeline({ history }) {
+  const { t, formatDateTime, formatStatusLabel } = useWorkerI18n();
+
   if (!history || history.length === 0) {
     return null;
   }
@@ -17,7 +20,7 @@ export default function ComplaintTimeline({ history }) {
     <div className="worker-stack">
       <div className="worker-section-title">
         <History size={18} aria-hidden="true" />
-        <span>Status History</span>
+        <span>{t("timeline.title")}</span>
       </div>
       <div className="worker-timeline">
         {history.map((entry, index) => (
@@ -31,12 +34,12 @@ export default function ComplaintTimeline({ history }) {
                 className="worker-timeline-status"
                 style={{ color: colors[entry.new_status] || "#4b5563" }}
               >
-                {entry.new_status?.replace(/_/g, " ")}
+                {formatStatusLabel(entry.new_status)}
               </div>
-              {entry.note && <div className="worker-timeline-note">{entry.note}</div>}
+              {entry.note ? <div className="worker-timeline-note">{entry.note}</div> : null}
               <div className="worker-timeline-date worker-timeline-meta">
-                <span>{entry.created_at ? new Date(entry.created_at).toLocaleString() : ""}</span>
-                {entry.changed_by_name ? <span>By {entry.changed_by_name}</span> : null}
+                <span>{formatDateTime(entry.created_at)}</span>
+                {entry.changed_by_name ? <span>{t("common.by", { name: entry.changed_by_name })}</span> : null}
               </div>
             </div>
           </div>

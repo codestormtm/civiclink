@@ -11,6 +11,7 @@ const { minioClient, bucketName: BUCKET } = require("../config/minio");
 const ROLES = require("../constants/roles");
 const { ensureFirebaseAuthSchema } = require("../services/firebaseAuthSchemaService");
 const { ensurePasswordResetSchema } = require("../services/passwordResetService");
+const { ensureUserPreferencesSchema } = require("../services/userPreferencesSchemaService");
 const { success, failure } = require("../utils/response");
 
 const JWT_SECRET = env.jwt.secret;
@@ -19,6 +20,7 @@ const ADMIN_PORTAL_ROLES = [ROLES.SYSTEM_ADMIN, ROLES.DEPT_ADMIN];
 const WORKER_PORTAL_ROLES = [ROLES.WORKER];
 const INVALID_LOGIN_MESSAGE = "Invalid email or password";
 const DUMMY_PASSWORD_HASH = "$2b$10$5fRvw5iIPQxjM0M1VYx5UuV3z7i0rGUNShUMHbOWcZH/5Li.yYI8e";
+const SUPPORTED_LANGUAGES = new Set(["en", "si", "ta"]);
 
 function normalizeName(value) {
   return String(value || "")
@@ -48,6 +50,7 @@ function buildSessionPayload(user) {
     name: user.name,
     department_id: user.department_id,
     department_name: user.department_name,
+    preferred_language: user.preferred_language || null,
   };
 }
 
@@ -59,7 +62,17 @@ function buildProfilePayload(user) {
     name: user.name,
     department_id: user.department_id,
     department_name: user.department_name || null,
+    preferred_language: user.preferred_language || null,
   };
+}
+
+function normalizePreferredLanguage(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  return SUPPORTED_LANGUAGES.has(normalized) ? normalized : null;
 }
 
 function createHttpError(message, statusCode) {
@@ -110,6 +123,7 @@ async function findUserForSession(client, clause, value) {
             u.auth_source,
             u.auth_provider,
             u.email_verified_at,
+            u.preferred_language,
             d.name AS department_name
      FROM users u
      LEFT JOIN departments d ON u.department_id = d.id
@@ -135,6 +149,7 @@ async function authenticateLocalUser(email, password) {
             u.department_id,
             u.is_active,
             u.auth_source,
+            u.preferred_language,
             d.name AS department_name
      FROM users u
      LEFT JOIN departments d ON u.department_id = d.id
@@ -209,14 +224,19 @@ async function upsertCitizenFromFirebase(client, identity) {
              WHEN $4::timestamptz IS NULL THEN email_verified_at
              ELSE $4::timestamptz
            END,
+           preferred_language = CASE
+             WHEN preferred_language IS NULL AND $5::varchar IS NOT NULL THEN $5::varchar
+             ELSE preferred_language
+           END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
-       RETURNING id, name, email, role, department_id, is_active`,
+       RETURNING id, name, email, role, department_id, is_active, preferred_language`,
       [
         firebaseUser.id,
         identity.email,
         identity.authProvider,
         emailVerifiedAt,
+        identity.preferredLanguage,
       ]
     );
 
@@ -250,15 +270,20 @@ async function upsertCitizenFromFirebase(client, identity) {
              WHEN $4::timestamptz IS NULL THEN email_verified_at
              ELSE $4::timestamptz
            END,
+           preferred_language = CASE
+             WHEN preferred_language IS NULL AND $5::varchar IS NOT NULL THEN $5::varchar
+             ELSE preferred_language
+           END,
            password_hash = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
-       RETURNING id, name, email, role, department_id, is_active`,
+       RETURNING id, name, email, role, department_id, is_active, preferred_language`,
       [
         emailUser.id,
         identity.firebaseUid,
         identity.authProvider,
         emailVerifiedAt,
+        identity.preferredLanguage,
       ]
     );
 
@@ -277,10 +302,11 @@ async function upsertCitizenFromFirebase(client, identity) {
        firebase_uid,
        auth_provider,
        auth_source,
-       email_verified_at
+       email_verified_at,
+       preferred_language
      )
-     VALUES ($1, $2, NULL, $3, $4, $5, 'FIREBASE', $6)
-     RETURNING id, name, email, role, department_id, is_active`,
+     VALUES ($1, $2, NULL, $3, $4, $5, 'FIREBASE', $6, $7)
+     RETURNING id, name, email, role, department_id, is_active, preferred_language`,
     [
       identity.name,
       identity.email,
@@ -288,6 +314,7 @@ async function upsertCitizenFromFirebase(client, identity) {
       identity.firebaseUid,
       identity.authProvider,
       emailVerifiedAt,
+      identity.preferredLanguage,
     ]
   );
 
@@ -298,20 +325,26 @@ async function upsertCitizenFromFirebase(client, identity) {
 }
 
 exports.register = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, preferred_language: preferredLanguageInput } = req.body;
+  const preferredLanguage = normalizePreferredLanguage(preferredLanguageInput);
 
   if (!name || !email || !password) {
     return failure(res, "name, email, and password are required", 400);
   }
 
+  if (preferredLanguageInput != null && !preferredLanguage) {
+    return failure(res, "preferred_language must be one of en, si, or ta", 400);
+  }
+
   try {
+    await ensureUserPreferencesSchema();
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `INSERT INTO users (name, email, password_hash, role)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, email, role`,
-      [name, email, hashedPassword, ROLES.CITIZEN]
+      `INSERT INTO users (name, email, password_hash, role, preferred_language)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, email, role, preferred_language`,
+      [name, email, hashedPassword, ROLES.CITIZEN, preferredLanguage]
     );
 
     return success(res, result.rows[0], 201);
@@ -347,10 +380,15 @@ exports.workerLogin = async (req, res) => {
 };
 
 exports.createFirebaseSession = async (req, res) => {
-  const { idToken } = req.body || {};
+  const { idToken, preferred_language: preferredLanguageInput } = req.body || {};
+  const preferredLanguage = normalizePreferredLanguage(preferredLanguageInput);
 
   if (!idToken || !String(idToken).trim()) {
     return failure(res, "idToken is required", 400);
+  }
+
+  if (preferredLanguageInput != null && !preferredLanguage) {
+    return failure(res, "preferred_language must be one of en, si, or ta", 400);
   }
 
   if (!isFirebaseAuthEnabled()) {
@@ -359,6 +397,7 @@ exports.createFirebaseSession = async (req, res) => {
 
   try {
     await ensureFirebaseAuthSchema();
+    await ensureUserPreferencesSchema();
   } catch (err) {
     return failure(res, err.message);
   }
@@ -395,6 +434,7 @@ exports.createFirebaseSession = async (req, res) => {
       name: deriveCitizenName(decodedToken),
       authProvider,
       emailVerified: Boolean(decodedToken.email_verified),
+      preferredLanguage,
     });
 
     return res.json(buildSessionPayload(user));
@@ -407,6 +447,7 @@ exports.createFirebaseSession = async (req, res) => {
 
 exports.getCurrentSession = async (req, res) => {
   try {
+    await ensureUserPreferencesSchema();
     const user = await findUserForSession(pool, "u.id = $1", req.user.id);
 
     if (!user || !user.is_active) {
@@ -414,6 +455,36 @@ exports.getCurrentSession = async (req, res) => {
     }
 
     return success(res, buildProfilePayload(user), 200, "Session active");
+  } catch (err) {
+    return failure(res, err.message);
+  }
+};
+
+exports.updatePreferences = async (req, res) => {
+  const preferredLanguage = normalizePreferredLanguage(req.body?.preferred_language);
+
+  if (!preferredLanguage) {
+    return failure(res, "preferred_language must be one of en, si, or ta", 400);
+  }
+
+  try {
+    await ensureUserPreferencesSchema();
+
+    const result = await pool.query(
+      `UPDATE users
+       SET preferred_language = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING id, name, email, role, department_id, preferred_language`,
+      [req.user.id, preferredLanguage]
+    );
+
+    if (result.rows.length === 0) {
+      return failure(res, "User not found", 404);
+    }
+
+    const user = await findUserForSession(pool, "u.id = $1", req.user.id);
+    return success(res, buildProfilePayload(user), 200, "Preferences updated");
   } catch (err) {
     return failure(res, err.message);
   }

@@ -1,50 +1,76 @@
-import { useState } from "react";
-import { clearCitizenSession, getName } from "../utils/auth";
-import { getActiveCitizenTab, setActiveCitizenTab } from "../utils/portalState";
+import { useEffect, useState } from "react";
+import { clearCitizenSession } from "../utils/auth";
+import { setActiveCitizenTab } from "../utils/portalState";
+import {
+  AssistantIcon,
+  CloseIcon,
+  ComplaintIcon,
+  LogoutIcon,
+  MenuIcon,
+  SettingsIcon,
+  TrackIcon,
+} from "./PublicIcons";
+import { useCitizenI18n } from "../i18n";
 
-export default function CitizenLayout({ children }) {
-  const [menu, setMenuState] = useState(() => getActiveCitizenTab());
-  const [activeLang, setActiveLang] = useState("en");
+export default function CitizenLayout({
+  menu,
+  setMenu,
+  userName,
+  children,
+  noticeKey,
+  onDismissNotice,
+  onLoggedOut,
+}) {
+  const { t } = useCitizenI18n();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const name = getName();
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
 
-  const setMenu = (nextMenu) => {
-    setMenuState(nextMenu);
+    const previousOverflow = document.body.style.overflow;
+    if (drawerOpen) {
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [drawerOpen]);
+
+  const handleSelectMenu = (nextMenu) => {
+    setMenu(nextMenu);
     setActiveCitizenTab(nextMenu);
+    setDrawerOpen(false);
   };
 
-  const logout = async () => {
+  const handleLogout = async () => {
     if (loggingOut) {
       return;
     }
 
     setLoggingOut(true);
     await clearCitizenSession();
-    window.location.reload();
-  };
-
-  const changeLanguage = (lang) => {
-    setActiveLang(lang);
-    if (typeof window.changeLanguage === "function") {
-      window.changeLanguage(lang);
-    }
+    onLoggedOut();
   };
 
   const navItems = [
-    { key: "submit", label: "Submit Complaint" },
-    { key: "guide", label: "AI Assistant" },
-    { key: "track", label: "Track Complaint" },
+    { key: "submit", label: t("layout.submit"), icon: ComplaintIcon },
+    { key: "guide", label: t("layout.guide"), icon: AssistantIcon },
+    { key: "track", label: t("layout.track"), icon: TrackIcon },
+    { key: "settings", label: t("layout.settings"), icon: SettingsIcon },
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #fff4d6 0%, var(--sl-surface) 100%)" }}>
+    <div className="citizen-shell">
       <div className="navbar">
         <div className="navbar-brand">
           <div className="navbar-logo">C</div>
           <div>
-            <div className="navbar-name">CivicLink</div>
-            <div className="navbar-sub">Citizen Portal</div>
+            <div className="navbar-name">{t("portal.brand")}</div>
+            <div className="navbar-sub">{t("portal.citizen")}</div>
           </div>
         </div>
 
@@ -53,34 +79,89 @@ export default function CitizenLayout({ children }) {
             <button
               key={item.key}
               className={`nav-tab ${menu === item.key ? "active" : ""}`}
-              onClick={() => setMenu(item.key)}
+              onClick={() => handleSelectMenu(item.key)}
             >
+              <item.icon size={16} className="nav-tab-icon" />
               {item.label}
             </button>
           ))}
         </div>
 
         <div className="navbar-right">
-          <div className="lang-switcher">
-            {["en", "ta", "si"].map((lang) => (
+          <span className="nav-user">{userName}</span>
+          <button className="nav-logout" onClick={handleLogout} disabled={loggingOut}>
+            <LogoutIcon size={16} />
+            {loggingOut ? t("layout.loggingOut") : t("layout.logout")}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className="citizen-menu-toggle"
+          onClick={() => setDrawerOpen((value) => !value)}
+          aria-label={drawerOpen ? t("layout.closeMenu") : t("layout.openMenu")}
+          aria-expanded={drawerOpen}
+        >
+          {drawerOpen ? <CloseIcon size={18} /> : <MenuIcon size={18} />}
+        </button>
+      </div>
+
+      <div className={`citizen-drawer-backdrop ${drawerOpen ? "is-open" : ""}`} onClick={() => setDrawerOpen(false)}>
+        <aside className={`citizen-drawer ${drawerOpen ? "is-open" : ""}`} onClick={(event) => event.stopPropagation()}>
+          <div className="citizen-drawer-header">
+            <div className="navbar-brand">
+              <div className="navbar-logo">C</div>
+              <div>
+                <div className="navbar-name">{t("portal.brand")}</div>
+                <div className="navbar-sub">{t("portal.citizen")}</div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="citizen-menu-toggle citizen-menu-toggle-inline"
+              onClick={() => setDrawerOpen(false)}
+              aria-label={t("layout.closeMenu")}
+            >
+              <CloseIcon size={18} />
+            </button>
+          </div>
+
+          <div className="citizen-drawer-nav">
+            {navItems.map((item) => (
               <button
-                key={lang}
-                className={`lang-btn ${activeLang === lang ? "active" : ""}`}
-                onClick={() => changeLanguage(lang)}
+                key={item.key}
+                type="button"
+                className={`citizen-drawer-link ${menu === item.key ? "active" : ""}`}
+                onClick={() => handleSelectMenu(item.key)}
               >
-                {lang.toUpperCase()}
+                <item.icon size={18} />
+                <span>{item.label}</span>
               </button>
             ))}
           </div>
 
-          <span className="nav-user">{name}</span>
-          <button className="nav-logout" onClick={logout} disabled={loggingOut}>
-            {loggingOut ? "Logging out..." : "Logout"}
-          </button>
-        </div>
+          <div className="citizen-drawer-footer">
+            <div className="citizen-drawer-user">{userName}</div>
+            <button className="nav-logout citizen-drawer-logout" onClick={handleLogout} disabled={loggingOut}>
+              <LogoutIcon size={16} />
+              {loggingOut ? t("layout.loggingOut") : t("layout.logout")}
+            </button>
+          </div>
+        </aside>
       </div>
 
-      <div>{children({ menu, setMenu })}</div>
+      {noticeKey ? (
+        <div className="container citizen-notice-wrap">
+          <div className="alert alert-success citizen-inline-notice">
+            <span>{t(noticeKey)}</span>
+            <button type="button" className="citizen-inline-notice-close" onClick={onDismissNotice}>
+              {t("common.close")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div>{children}</div>
     </div>
   );
 }

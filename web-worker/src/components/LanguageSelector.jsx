@@ -1,11 +1,19 @@
-import { WORKER_LANGUAGES } from "../utils/language";
+import { WORKER_LANGUAGES, useWorkerI18n } from "../i18n";
 
 export default function LanguageSelector({ value, onChange, disabled = false }) {
+  const { t } = useWorkerI18n();
+
+  const labels = {
+    en: t("language.english"),
+    si: t("language.sinhala"),
+    ta: t("language.tamil"),
+  };
+
   return (
     <div
       className="worker-language-selector notranslate"
       role="tablist"
-      aria-label="Select language"
+      aria-label={t("settings.languageTitle")}
       translate="no"
     >
       {WORKER_LANGUAGES.map((language) => (
@@ -16,7 +24,7 @@ export default function LanguageSelector({ value, onChange, disabled = false }) 
           onClick={() => onChange(language.code)}
           disabled={disabled}
         >
-          {language.label}
+          {labels[language.code] || language.label}
         </button>
       ))}
     </div>

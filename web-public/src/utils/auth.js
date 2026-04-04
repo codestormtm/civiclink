@@ -9,12 +9,19 @@ const KEYS = {
   TOKEN: "token",
   ROLE: "role",
   NAME: "name",
+  PREFERRED_LANGUAGE: "preferred_language",
 };
 
-export function setAuth({ token, role, name }) {
+export function setAuth({ token, role, name, preferred_language }) {
   localStorage.setItem(KEYS.TOKEN, token);
   localStorage.setItem(KEYS.ROLE, role || "");
   localStorage.setItem(KEYS.NAME, name || "");
+
+  if (preferred_language) {
+    localStorage.setItem(KEYS.PREFERRED_LANGUAGE, preferred_language);
+  } else {
+    localStorage.removeItem(KEYS.PREFERRED_LANGUAGE);
+  }
 }
 
 export function clearAuth() {
@@ -47,6 +54,19 @@ export function getRole() {
 
 export function getName() {
   return localStorage.getItem(KEYS.NAME) || "Citizen";
+}
+
+export function getPreferredLanguage() {
+  return localStorage.getItem(KEYS.PREFERRED_LANGUAGE) || "";
+}
+
+export function setPreferredLanguage(preferredLanguage) {
+  if (preferredLanguage) {
+    localStorage.setItem(KEYS.PREFERRED_LANGUAGE, preferredLanguage);
+    return;
+  }
+
+  localStorage.removeItem(KEYS.PREFERRED_LANGUAGE);
 }
 
 // Decode JWT payload without verifying signature.

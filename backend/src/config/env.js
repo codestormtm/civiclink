@@ -78,6 +78,28 @@ function replaceLoopbackHostname(urlValue, nextHostname) {
   return parsed.toString().replace(/\/$/, "");
 }
 
+function resolveBackendApiUrl(urlValue, internalPort, monitoringHost) {
+  const parsed = parseUrl(urlValue);
+
+  if (!parsed) {
+    return urlValue;
+  }
+
+  if (runningInDocker) {
+    const hostname = parsed.hostname.toLowerCase();
+
+    if (LOCALHOST_HOSTS.has(hostname)) {
+      parsed.hostname = "127.0.0.1";
+      parsed.port = String(internalPort);
+      return parsed.toString().replace(/\/$/, "");
+    }
+
+    return parsed.toString().replace(/\/$/, "");
+  }
+
+  return replaceLoopbackHostname(urlValue, monitoringHost);
+}
+
 const detectedWslHostIp = runningInWsl ? detectWslHostIp() : null;
 const lanIpv4Addresses = getLanIpv4Addresses();
 const preferredLanHost = runningInWsl
@@ -89,9 +111,10 @@ const defaultCitizenPortalUrl = `http://${defaultMonitoringHost}:5173`;
 const defaultAdminPortalUrl = `http://${defaultMonitoringHost}:5174`;
 const defaultWorkerPortalUrl = `http://${defaultMonitoringHost}:5175`;
 const defaultBackendApiUrl = `http://${runningInDocker ? "127.0.0.1" : defaultMonitoringHost}:${process.env.PORT || 5001}/api/health/app`;
-const resolvedBackendApiUrl = replaceLoopbackHostname(
+const resolvedBackendApiUrl = resolveBackendApiUrl(
   process.env.BACKEND_API_URL || defaultBackendApiUrl,
-  runningInDocker ? "127.0.0.1" : defaultMonitoringHost
+  Number(process.env.PORT || 5001),
+  defaultMonitoringHost
 );
 const rawCitizenPortalUrl = process.env.CITIZEN_PORTAL_URL
   || (runningInDocker ? defaultCitizenPortalUrl : (process.env.CLIENT_URL || defaultCitizenPortalUrl));

@@ -9,6 +9,7 @@ import {
 import { useEffect, useState } from "react";
 import api from "../api/api";
 import socket from "../api/socket";
+import { useWorkerI18n } from "../i18n";
 import StatusBadge from "../components/StatusBadge";
 import WorkerHeader from "../components/WorkerHeader";
 
@@ -17,20 +18,20 @@ function countByStatus(tasks, status) {
 }
 
 const TAB_CONFIG = [
-  { key: "ASSIGNED", label: "Assigned", icon: ClipboardList },
-  { key: "IN_PROGRESS", label: "In Progress", icon: Clock3 },
-  { key: "RESOLVED", label: "Resolved", icon: CircleCheckBig },
+  { key: "ASSIGNED", labelKey: "tab.assigned", icon: ClipboardList },
+  { key: "IN_PROGRESS", labelKey: "tab.inProgress", icon: Clock3 },
+  { key: "RESOLVED", labelKey: "tab.resolved", icon: CircleCheckBig },
 ];
 
 export default function WorkerDashboard({
   user,
   openTask,
   onLogout,
-  language,
-  onLanguageChange,
+  onOpenSettings,
   notificationPermission,
   onEnableNotifications,
 }) {
+  const { t, formatDateTime } = useWorkerI18n();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("ASSIGNED");
@@ -55,7 +56,7 @@ export default function WorkerDashboard({
       }
     }
 
-    fetchTasks();
+    void fetchTasks();
     socket.on("task_assigned", fetchTasks);
     socket.on("status_updated", fetchTasks);
 
@@ -75,38 +76,41 @@ export default function WorkerDashboard({
     <div className="worker-shell">
       <WorkerHeader
         user={user}
-        language={language}
-        onLanguageChange={onLanguageChange}
         notificationPermission={notificationPermission}
         onEnableNotifications={onEnableNotifications}
+        onOpenSettings={onOpenSettings}
         onLogout={onLogout}
       />
 
       <main className="worker-wrap">
         <section className="worker-hero-card">
           <div className="worker-hero-copy">
-            <div className="worker-kicker">Field Operations Board</div>
-            <h1 className="worker-title">Assigned complaints</h1>
+            <div className="worker-kicker">{t("dashboard.kicker")}</div>
+            <h1 className="worker-title">{t("dashboard.title")}</h1>
             <p className="worker-subtitle">
-              {user.department_name ? `${user.department_name} operations` : "Your department operations"}
+              {user.department_name
+                ? t("dashboard.departmentNamed", { department: user.department_name })
+                : t("dashboard.departmentFallback")}
             </p>
           </div>
           <div className="worker-hero-meta">
             <div className="worker-hero-chips">
-              <span className="worker-count-pill">{pending} assigned</span>
-              <span className="worker-count-pill">{inProgress} in progress</span>
-              <span className="worker-count-pill">{resolved} resolved</span>
+              <span className="worker-count-pill">{t("dashboard.count.assigned", { count: pending })}</span>
+              <span className="worker-count-pill">{t("dashboard.count.progress", { count: inProgress })}</span>
+              <span className="worker-count-pill">{t("dashboard.count.resolved", { count: resolved })}</span>
             </div>
-            <p className="worker-hero-note">Track assigned work, update status quickly, and attach field evidence without switching portals.</p>
+            <p className="worker-hero-note">{t("dashboard.note")}</p>
           </div>
         </section>
 
         <section className="worker-card worker-stack-lg">
-          <div className="worker-tab-list" role="tablist" aria-label="Task status tabs">
+          <div className="worker-tab-list" role="tablist" aria-label={t("dashboard.tabs")}>
             {TAB_CONFIG.map((tab) => {
               const Icon = tab.icon;
               const count = countByStatus(tasks, tab.key);
               const isActive = activeTab === tab.key;
+              const label = t(tab.labelKey);
+
               return (
                 <button
                   key={tab.key}
@@ -116,7 +120,7 @@ export default function WorkerDashboard({
                 >
                   <span className="worker-tab-copy">
                     <Icon size={18} aria-hidden="true" />
-                    <span>{tab.label}</span>
+                    <span>{label}</span>
                   </span>
                   <span className="worker-tab-count">{count}</span>
                 </button>
@@ -128,21 +132,24 @@ export default function WorkerDashboard({
             <div>
               <div className="worker-section-title">
                 <Wrench size={18} aria-hidden="true" />
-                <span>{TAB_CONFIG.find((tab) => tab.key === activeTab)?.label} Tasks</span>
+                <span>
+                  {t("dashboard.sectionTitle", {
+                    label: t(TAB_CONFIG.find((tab) => tab.key === activeTab)?.labelKey || "tab.assigned"),
+                  })}
+                </span>
               </div>
-              <p className="worker-section-copy">Open a task to update progress, add notes, and upload field evidence.</p>
+              <p className="worker-section-copy">{t("dashboard.sectionCopy")}</p>
             </div>
-            <span className="worker-count-pill">{visibleTasks.length} tasks</span>
+            <span className="worker-count-pill">{t("dashboard.tasksCount", { count: visibleTasks.length })}</span>
           </div>
 
-          {loading && <p className="worker-empty">Loading tasks...</p>}
-          {!loading && tasks.length === 0 && <p className="worker-empty">No tasks assigned yet.</p>}
+          {loading ? <p className="worker-empty">{t("dashboard.loading")}</p> : null}
+          {!loading && tasks.length === 0 ? <p className="worker-empty">{t("dashboard.empty")}</p> : null}
+          {!loading && tasks.length > 0 && visibleTasks.length === 0 ? (
+            <p className="worker-empty">{t("dashboard.emptyTab")}</p>
+          ) : null}
 
-          {!loading && tasks.length > 0 && visibleTasks.length === 0 && (
-            <p className="worker-empty">No tasks in this tab right now.</p>
-          )}
-
-          {!loading && visibleTasks.length > 0 && (
+          {!loading && visibleTasks.length > 0 ? (
             <div className="worker-task-list">
               {visibleTasks.map((task) => (
                 <article className="worker-task-card" key={task.id}>
@@ -159,20 +166,20 @@ export default function WorkerDashboard({
 
                   <div className="worker-meta-grid">
                     <div>
-                      <span className="worker-meta-label">Department</span>
-                      <span>{task.department_name || "Unassigned"}</span>
+                      <span className="worker-meta-label">{t("dashboard.meta.department")}</span>
+                      <span>{task.department_name || t("dashboard.meta.unassigned")}</span>
                     </div>
                     <div>
-                      <span className="worker-meta-label">Issue Type</span>
-                      <span>{task.complaint_type || "Not specified"}</span>
+                      <span className="worker-meta-label">{t("dashboard.meta.issueType")}</span>
+                      <span>{task.complaint_type || t("dashboard.meta.notSpecified")}</span>
                     </div>
                     <div>
-                      <span className="worker-meta-label">Assigned</span>
-                      <span>{task.assigned_at ? new Date(task.assigned_at).toLocaleString() : "Unknown"}</span>
+                      <span className="worker-meta-label">{t("dashboard.meta.assigned")}</span>
+                      <span>{task.assigned_at ? formatDateTime(task.assigned_at) : t("status.unknown")}</span>
                     </div>
                     <div>
-                      <span className="worker-meta-label">Location</span>
-                      <span>{task.address_text || "Location not added"}</span>
+                      <span className="worker-meta-label">{t("dashboard.meta.location")}</span>
+                      <span>{task.address_text || t("dashboard.meta.locationMissing")}</span>
                     </div>
                   </div>
 
@@ -183,7 +190,7 @@ export default function WorkerDashboard({
                       onClick={() => openTask(task.id)}
                     >
                       <FolderOpen size={18} aria-hidden="true" />
-                      <span>Open Task</span>
+                      <span>{t("dashboard.openTask")}</span>
                     </button>
 
                     {task.address_text ? (
@@ -196,7 +203,7 @@ export default function WorkerDashboard({
                 </article>
               ))}
             </div>
-          )}
+          ) : null}
         </section>
       </main>
     </div>

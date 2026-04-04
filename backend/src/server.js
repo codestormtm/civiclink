@@ -12,6 +12,7 @@ const { ensureBucketExists } = require("./config/minio");
 const { ensureFirebaseAuthSchema } = require("./services/firebaseAuthSchemaService");
 const { ensureMonitoringSchema, startMonitoringLoop } = require("./services/monitoringService");
 const { ensurePasswordResetSchema } = require("./services/passwordResetService");
+const { ensureUserPreferencesSchema } = require("./services/userPreferencesSchemaService");
 const logger = require("./utils/logger");
 
 const server = http.createServer(app);
@@ -100,6 +101,7 @@ async function start() {
     await ensureFirebaseAuthSchema();
     await ensureMonitoringSchema();
     await ensurePasswordResetSchema();
+    await ensureUserPreferencesSchema();
     await listen(env.port);
 
     if (env.monitoring.enabled) {

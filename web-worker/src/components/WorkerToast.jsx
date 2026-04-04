@@ -1,6 +1,9 @@
 import { BellRing, ExternalLink, X } from "lucide-react";
+import { useWorkerI18n } from "../i18n";
 
 export default function WorkerToast({ toast, onDismiss, onOpen }) {
+  const { t } = useWorkerI18n();
+
   if (!toast) {
     return null;
   }
@@ -24,7 +27,7 @@ export default function WorkerToast({ toast, onDismiss, onOpen }) {
               onClick={() => onOpen(toast.taskId)}
             >
               <ExternalLink size={18} aria-hidden="true" />
-              <span>Open Task</span>
+              <span>{t("toast.openTask")}</span>
             </button>
           ) : null}
 
@@ -32,7 +35,7 @@ export default function WorkerToast({ toast, onDismiss, onOpen }) {
             type="button"
             className="worker-secondary-btn worker-icon-btn"
             onClick={onDismiss}
-            aria-label="Dismiss notification"
+            aria-label={t("toast.dismiss")}
           >
             <X size={18} aria-hidden="true" />
           </button>

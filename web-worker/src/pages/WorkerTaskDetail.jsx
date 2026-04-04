@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import api from "../api/api";
+import { useWorkerI18n } from "../i18n";
 import ComplaintTimeline from "../components/ComplaintTimeline";
 import StatusBadge from "../components/StatusBadge";
 import WorkerHeader from "../components/WorkerHeader";
@@ -19,10 +20,10 @@ function buildMapsUrl(latitude, longitude) {
   return `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
 }
 
-function getAttachmentRoleLabel(role) {
-  if (role === "BEFORE") return "Before";
-  if (role === "AFTER") return "After";
-  return "General";
+function getAttachmentRoleLabel(role, t) {
+  if (role === "BEFORE") return t("task.attachmentRole.beforeLabel");
+  if (role === "AFTER") return t("task.attachmentRole.afterLabel");
+  return t("task.attachmentRole.generalLabel");
 }
 
 function isImageAttachment(attachment) {
@@ -62,11 +63,11 @@ export default function WorkerTaskDetail({
   user,
   goBack,
   onLogout,
-  language,
-  onLanguageChange,
+  onOpenSettings,
   notificationPermission,
   onEnableNotifications,
 }) {
+  const { t, formatDateTime } = useWorkerI18n();
   const [data, setData] = useState(null);
   const [note, setNote] = useState("");
   const [file, setFile] = useState(null);
@@ -83,13 +84,13 @@ export default function WorkerTaskDetail({
     } catch (err) {
       setMessage({
         type: "error",
-        text: err?.response?.data?.error || "Failed to load task details.",
+        text: err?.response?.data?.error || t("task.error.load"),
       });
     }
-  }, [taskId]);
+  }, [taskId, t]);
 
   useEffect(() => {
-    fetchTask();
+    void fetchTask();
   }, [fetchTask]);
 
   const attachments = data?.attachments;
@@ -105,7 +106,7 @@ export default function WorkerTaskDetail({
       return () => {};
     }
 
-    (async () => {
+    void (async () => {
       const nextPreviewUrls = {};
 
       await Promise.all(
@@ -118,7 +119,7 @@ export default function WorkerTaskDetail({
           } catch {
             nextPreviewUrls[attachment.id] = "";
           }
-        })
+        }),
       );
 
       if (active) {
@@ -137,21 +138,21 @@ export default function WorkerTaskDetail({
       await api.patch(`/worker/assignments/${taskId}/status`, { status, note });
       setMessage({
         type: "success",
-        text: status === "IN_PROGRESS" ? "Task started successfully." : "Task marked as resolved.",
+        text: status === "IN_PROGRESS" ? t("task.statusStarted") : t("task.statusResolved"),
       });
       setNote("");
       fetchTask();
     } catch (err) {
       setMessage({
         type: "error",
-        text: err?.response?.data?.error || "Failed to update status.",
+        text: err?.response?.data?.error || t("task.statusFailed"),
       });
     }
   };
 
   const uploadEvidence = async () => {
     if (!file) {
-      setMessage({ type: "error", text: "Choose a file before uploading evidence." });
+      setMessage({ type: "error", text: t("task.chooseFile") });
       return;
     }
 
@@ -162,12 +163,12 @@ export default function WorkerTaskDetail({
       await api.post(`/worker/assignments/${taskId}/attachments`, formData);
       setFile(null);
       setAttachmentRole("AFTER");
-      setMessage({ type: "success", text: "Evidence uploaded successfully." });
+      setMessage({ type: "success", text: t("task.uploaded") });
       fetchTask();
     } catch (err) {
       setMessage({
         type: "error",
-        text: err?.response?.data?.error || "Failed to upload evidence.",
+        text: err?.response?.data?.error || t("task.uploadFailed"),
       });
     }
   };
@@ -179,7 +180,7 @@ export default function WorkerTaskDetail({
     } catch (err) {
       setMessage({
         type: "error",
-        text: err?.response?.data?.error || "Failed to download attachment.",
+        text: err?.response?.data?.error || t("task.downloadFailed"),
       });
     } finally {
       setDownloadingAttachmentId("");
@@ -191,18 +192,17 @@ export default function WorkerTaskDetail({
       <div className="worker-shell">
         <WorkerHeader
           user={user}
-          language={language}
-          onLanguageChange={onLanguageChange}
           notificationPermission={notificationPermission}
           onEnableNotifications={onEnableNotifications}
+          onOpenSettings={onOpenSettings}
           onBack={goBack}
           onLogout={onLogout}
         />
         <main className="worker-wrap">
           <section className="worker-hero-card worker-hero-card-compact">
             <div className="worker-hero-copy">
-              <div className="worker-kicker">Field Operations</div>
-              <h1 className="worker-title">Task detail</h1>
+              <div className="worker-kicker">{t("task.loadingKicker")}</div>
+              <h1 className="worker-title">{t("task.title")}</h1>
             </div>
           </section>
 
@@ -210,7 +210,7 @@ export default function WorkerTaskDetail({
             {message.text ? (
               <div className={`worker-alert worker-alert-${message.type}`}>{message.text}</div>
             ) : (
-              <p className="worker-empty">Loading task details...</p>
+              <p className="worker-empty">{t("task.loading")}</p>
             )}
           </section>
         </main>
@@ -233,10 +233,9 @@ export default function WorkerTaskDetail({
     <div className="worker-shell">
       <WorkerHeader
         user={user}
-        language={language}
-        onLanguageChange={onLanguageChange}
         notificationPermission={notificationPermission}
         onEnableNotifications={onEnableNotifications}
+        onOpenSettings={onOpenSettings}
         onBack={goBack}
         onLogout={onLogout}
         status={assignment.complaint_status}
@@ -245,58 +244,56 @@ export default function WorkerTaskDetail({
       <main className="worker-wrap worker-stack-lg">
         <section className="worker-hero-card worker-hero-card-detail">
           <div className="worker-hero-copy">
-            <div className="worker-kicker">Assigned task</div>
+            <div className="worker-kicker">{t("task.kicker")}</div>
             <h1 className="worker-title">{assignment.title}</h1>
             <p className="worker-subtitle worker-user-name notranslate" translate="no">
-              {user.name || "Worker"}
+              {user.name || t("portal.workerRole")}
             </p>
           </div>
           <div className="worker-hero-meta">
             <StatusBadge status={assignment.complaint_status} />
-            <p className="worker-hero-note">Update progress in the field, keep the department informed, and close the complaint with evidence.</p>
+            <p className="worker-hero-note">{t("task.heroNote")}</p>
           </div>
         </section>
 
-        {message.text && (
-          <div className={`worker-alert worker-alert-${message.type}`}>{message.text}</div>
-        )}
+        {message.text ? <div className={`worker-alert worker-alert-${message.type}`}>{message.text}</div> : null}
 
         <section className="worker-card worker-stack-lg">
           <div className="worker-section-title">
             <Wrench size={18} aria-hidden="true" />
-            <span>Complaint Details</span>
+            <span>{t("task.details")}</span>
           </div>
 
           <div className="worker-detail-grid">
             <div>
-              <span className="worker-meta-label">Department</span>
-              <span>{assignment.department_name || "Unknown"}</span>
+              <span className="worker-meta-label">{t("task.meta.department")}</span>
+              <span>{assignment.department_name || t("status.unknown")}</span>
             </div>
             <div>
-              <span className="worker-meta-label">Issue Type</span>
-              <span>{assignment.complaint_type || "Unknown"}</span>
+              <span className="worker-meta-label">{t("task.meta.issueType")}</span>
+              <span>{assignment.complaint_type || t("status.unknown")}</span>
             </div>
             <div>
-              <span className="worker-meta-label">Assigned</span>
-              <span>{assignment.assigned_at ? new Date(assignment.assigned_at).toLocaleString() : "Unknown"}</span>
+              <span className="worker-meta-label">{t("task.meta.assigned")}</span>
+              <span>{assignment.assigned_at ? formatDateTime(assignment.assigned_at) : t("status.unknown")}</span>
             </div>
             <div>
-              <span className="worker-meta-label">Description</span>
-              <span>{assignment.description || "No description provided."}</span>
+              <span className="worker-meta-label">{t("task.meta.description")}</span>
+              <span>{assignment.description || t("task.meta.noDescription")}</span>
             </div>
           </div>
 
-          {(assignment.address_text || hasCoordinates) && (
+          {assignment.address_text || hasCoordinates ? (
             <div className="worker-location-card">
               <div className="worker-section-title">
                 <MapPinned size={18} aria-hidden="true" />
-                <span>Location</span>
+                <span>{t("task.location")}</span>
               </div>
               <p>
                 {assignment.address_text
                   || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`}
               </p>
-              {hasCoordinates && (
+              {hasCoordinates ? (
                 <a
                   className="worker-link-chip"
                   href={buildMapsUrl(latitude, longitude)}
@@ -304,24 +301,24 @@ export default function WorkerTaskDetail({
                   rel="noreferrer"
                 >
                   <Navigation size={18} aria-hidden="true" />
-                  <span>Open Navigation</span>
+                  <span>{t("task.openNavigation")}</span>
                 </a>
-              )}
+              ) : null}
             </div>
-          )}
+          ) : null}
         </section>
 
         <section className="worker-card worker-stack-lg">
           <div className="worker-section-title">
             <Play size={18} aria-hidden="true" />
-            <span>Update Work Status</span>
+            <span>{t("task.updateStatus")}</span>
           </div>
           <textarea
             className="worker-textarea"
             value={note}
             onChange={(event) => setNote(event.target.value)}
             rows={4}
-            placeholder="Add a field note or progress update..."
+            placeholder={t("task.notePlaceholder")}
           />
 
           <div className="worker-actions">
@@ -332,7 +329,7 @@ export default function WorkerTaskDetail({
               disabled={!canStart}
             >
               <Play size={18} aria-hidden="true" />
-              <span>Start Work</span>
+              <span>{t("task.start")}</span>
             </button>
             <button
               type="button"
@@ -341,7 +338,7 @@ export default function WorkerTaskDetail({
               disabled={!canResolve}
             >
               <CheckCircle2 size={18} aria-hidden="true" />
-              <span>Mark Resolved</span>
+              <span>{t("task.resolve")}</span>
             </button>
           </div>
         </section>
@@ -349,7 +346,7 @@ export default function WorkerTaskDetail({
         <section className="worker-card worker-stack-lg">
           <div className="worker-section-title">
             <Upload size={18} aria-hidden="true" />
-            <span>Upload Evidence</span>
+            <span>{t("task.upload")}</span>
           </div>
           <div className="worker-upload-grid">
             <input
@@ -363,29 +360,32 @@ export default function WorkerTaskDetail({
               value={attachmentRole}
               onChange={(event) => setAttachmentRole(event.target.value)}
             >
-              <option value="AFTER">After photo</option>
-              <option value="BEFORE">Before photo</option>
-              <option value="GENERAL">General attachment</option>
+              <option value="AFTER">{t("task.attachmentRole.after")}</option>
+              <option value="BEFORE">{t("task.attachmentRole.before")}</option>
+              <option value="GENERAL">{t("task.attachmentRole.general")}</option>
             </select>
           </div>
-          <p className="worker-section-copy">
-            Image uploads keep the selected role. Non-image files are stored as general attachments automatically.
-          </p>
-          {file ? <div className="worker-inline-tip"><FileImage size={16} aria-hidden="true" /><span>{file.name}</span></div> : null}
+          <p className="worker-section-copy">{t("task.uploadCopy")}</p>
+          {file ? (
+            <div className="worker-inline-tip">
+              <FileImage size={16} aria-hidden="true" />
+              <span>{file.name}</span>
+            </div>
+          ) : null}
           <button
             type="button"
             className="worker-primary-btn worker-btn-with-icon"
             onClick={uploadEvidence}
           >
             <Upload size={18} aria-hidden="true" />
-            <span>Upload Evidence</span>
+            <span>{t("task.upload")}</span>
           </button>
         </section>
 
         <section className="worker-card worker-stack-lg">
           <div className="worker-section-title">
             <FileImage size={18} aria-hidden="true" />
-            <span>Evidence Gallery</span>
+            <span>{t("task.gallery")}</span>
           </div>
           {imageAttachments.length ? (
             <div className="worker-attachment-grid">
@@ -401,29 +401,29 @@ export default function WorkerTaskDetail({
                     {previewUrl ? (
                       <img
                         src={previewUrl}
-                        alt={`Complaint evidence ${index + 1}`}
+                        alt={t("task.imageAlt", { count: index + 1 })}
                         className="worker-attachment-thumb"
                       />
                     ) : (
-                      <div className="worker-attachment-placeholder">Loading preview...</div>
+                      <div className="worker-attachment-placeholder">{t("task.previewLoading")}</div>
                     )}
                     <div className="worker-attachment-meta">
                       <span className={`worker-role-badge worker-role-badge-${attachment.attachment_role.toLowerCase()}`}>
-                        {getAttachmentRoleLabel(attachment.attachment_role)}
+                        {getAttachmentRoleLabel(attachment.attachment_role, t)}
                       </span>
-                      <span>{new Date(attachment.created_at).toLocaleString()}</span>
+                      <span>{formatDateTime(attachment.created_at)}</span>
                     </div>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <p className="worker-empty worker-empty-inline">No image evidence uploaded yet.</p>
+            <p className="worker-empty worker-empty-inline">{t("task.noImageEvidence")}</p>
           )}
 
           <div className="worker-section-title">
             <Files size={18} aria-hidden="true" />
-            <span>Other Attachments</span>
+            <span>{t("task.otherAttachments")}</span>
           </div>
           {fileAttachments.length ? (
             <div className="worker-attachment-file-list">
@@ -433,10 +433,10 @@ export default function WorkerTaskDetail({
                   <div key={attachment.id} className="worker-attachment-file-row">
                     <div className="worker-attachment-file-copy">
                       <span className="worker-role-badge worker-role-badge-general">
-                        {getAttachmentRoleLabel(attachment.attachment_role)}
+                        {getAttachmentRoleLabel(attachment.attachment_role, t)}
                       </span>
                       <strong>{fallbackName}</strong>
-                      <span>{attachment.file_type || "Unknown file type"}</span>
+                      <span>{attachment.file_type || t("task.otherFileType")}</span>
                     </div>
                     <button
                       type="button"
@@ -445,14 +445,14 @@ export default function WorkerTaskDetail({
                       onClick={() => downloadAttachment(attachment, fallbackName)}
                     >
                       <Download size={18} aria-hidden="true" />
-                      <span>{downloadingAttachmentId === attachment.id ? "Downloading..." : "Download"}</span>
+                      <span>{downloadingAttachmentId === attachment.id ? t("task.downloading") : t("task.download")}</span>
                     </button>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <p className="worker-empty worker-empty-inline">No non-image attachments uploaded yet.</p>
+            <p className="worker-empty worker-empty-inline">{t("task.noOtherEvidence")}</p>
           )}
         </section>
 
@@ -461,7 +461,7 @@ export default function WorkerTaskDetail({
         </section>
       </main>
 
-      {selectedImage && selectedImageUrl && (
+      {selectedImage && selectedImageUrl ? (
         <div className="worker-lightbox-backdrop" onClick={() => setSelectedImageId(null)}>
           <div className="worker-lightbox-card" onClick={(event) => event.stopPropagation()}>
             <button
@@ -469,22 +469,22 @@ export default function WorkerTaskDetail({
               className="worker-lightbox-close"
               onClick={() => setSelectedImageId(null)}
             >
-              Close
+              {t("common.close")}
             </button>
             <img
               src={selectedImageUrl}
-              alt="Selected complaint evidence"
+              alt={t("task.selectedEvidence")}
               className="worker-lightbox-image"
             />
             <div className="worker-lightbox-meta">
               <span className={`worker-role-badge worker-role-badge-${selectedImage.attachment_role.toLowerCase()}`}>
-                {getAttachmentRoleLabel(selectedImage.attachment_role)}
+                {getAttachmentRoleLabel(selectedImage.attachment_role, t)}
               </span>
-              <span>{new Date(selectedImage.created_at).toLocaleString()}</span>
+              <span>{formatDateTime(selectedImage.created_at)}</span>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

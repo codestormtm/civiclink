@@ -1,10 +1,11 @@
-import { CircleHelp, KeyRound, Languages, LockKeyhole, LogIn, Mail } from "lucide-react";
+import { CircleHelp, KeyRound, LockKeyhole, LogIn, Mail } from "lucide-react";
 import { useState } from "react";
 import api from "../api/api";
-import LanguageSelector from "../components/LanguageSelector";
+import { useWorkerI18n } from "../i18n";
 import { setAuth } from "../utils/auth";
 
-export default function Login({ onLoggedIn, language, onLanguageChange }) {
+export default function Login({ onLoggedIn }) {
+  const { t } = useWorkerI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -14,7 +15,7 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      setError("Enter your email and password to continue.");
+      setError(t("login.error.required"));
       return;
     }
 
@@ -28,9 +29,9 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
         password,
       });
       setAuth(res.data);
-      onLoggedIn();
+      onLoggedIn(res.data);
     } catch (err) {
-      setError(err?.response?.data?.message || "Unable to sign in to the worker portal.");
+      setError(err?.response?.data?.message || t("login.error.failed"));
     } finally {
       setLoading(false);
     }
@@ -38,7 +39,7 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
-      setError("Enter your work email address first.");
+      setError(t("login.error.helpEmail"));
       return;
     }
 
@@ -52,7 +53,7 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
 
       if (data?.flow === "WORKER_CONTACT") {
         setHelpPanel({
-          title: "Password help from your department",
+          title: t("login.help.title"),
           message: data.message,
           departmentName: data.department_name,
           contactPhone: data.contact_phone,
@@ -61,13 +62,13 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
       }
 
       if (data?.flow === "DEPT_ADMIN_REQUEST") {
-        setError("This account belongs to the admin portal. Use the admin portal for password help.");
+        setError(t("login.help.adminPortal"));
         return;
       }
 
-      setError(data?.message || "Password help is not available for this account.");
+      setError(data?.message || t("login.help.unavailable"));
     } catch (err) {
-      setError(err?.response?.data?.message || "Unable to start the password help flow.");
+      setError(err?.response?.data?.message || t("login.error.helpFlow"));
     } finally {
       setHelpLoading(false);
     }
@@ -82,33 +83,23 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
   return (
     <div className="worker-auth-shell">
       <div className="worker-auth-card">
-        <div className="worker-auth-toolbar notranslate" translate="no">
-          <div className="worker-toolbar-label">
-            <Languages size={16} aria-hidden="true" />
-            <span>Language</span>
-          </div>
-          <LanguageSelector value={language} onChange={onLanguageChange} />
-        </div>
-
         <div className="worker-brand worker-brand-auth">
           <div className="worker-brand-icon">C</div>
           <div className="worker-brand-copy notranslate" translate="no">
-            <div className="worker-brand-name">CivicLink</div>
-            <div className="worker-brand-sub">Worker Portal</div>
+            <div className="worker-brand-name">{t("portal.brand")}</div>
+            <div className="worker-brand-sub">{t("portal.worker")}</div>
           </div>
         </div>
 
-        <div className="worker-auth-kicker">Field Operations Workspace</div>
-        <h1>Sign in to continue field work</h1>
-        <p className="worker-auth-copy">
-          Manage assigned complaints, upload evidence, and update progress from a mobile-ready CivicLink workspace.
-        </p>
+        <div className="worker-auth-kicker">{t("portal.fieldOperations")}</div>
+        <h1>{t("login.heading")}</h1>
+        <p className="worker-auth-copy">{t("login.subtitle")}</p>
 
-        {error && <div className="worker-alert worker-alert-error">{error}</div>}
+        {error ? <div className="worker-alert worker-alert-error">{error}</div> : null}
 
         <div className="worker-auth-body">
           <div className="worker-stack">
-            <label className="worker-label" htmlFor="worker-email">Work Email</label>
+            <label className="worker-label" htmlFor="worker-email">{t("login.emailLabel")}</label>
             <div className="worker-input-with-icon">
               <Mail size={18} aria-hidden="true" />
               <input
@@ -118,13 +109,13 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="worker@department.gov.lk"
+                placeholder={t("login.emailPlaceholder")}
               />
             </div>
           </div>
 
           <div className="worker-stack">
-            <label className="worker-label" htmlFor="worker-password">Password</label>
+            <label className="worker-label" htmlFor="worker-password">{t("login.passwordLabel")}</label>
             <div className="worker-input-with-icon">
               <LockKeyhole size={18} aria-hidden="true" />
               <input
@@ -134,7 +125,7 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Enter your password"
+                placeholder={t("login.passwordPlaceholder")}
               />
             </div>
           </div>
@@ -147,7 +138,7 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
               disabled={loading}
             >
               <LogIn size={18} aria-hidden="true" />
-              <span>{loading ? "Signing in..." : "Sign In"}</span>
+              <span>{loading ? t("login.signingIn") : t("login.signIn")}</span>
             </button>
 
             <button
@@ -159,28 +150,28 @@ export default function Login({ onLoggedIn, language, onLanguageChange }) {
               {helpLoading ? (
                 <>
                   <KeyRound size={16} aria-hidden="true" />
-                  <span>Checking account...</span>
+                  <span>{t("login.checkingAccount")}</span>
                 </>
               ) : (
                 <>
                   <CircleHelp size={16} aria-hidden="true" />
-                  <span>Need password help?</span>
+                  <span>{t("login.passwordHelp")}</span>
                 </>
               )}
             </button>
           </div>
         </div>
 
-        {helpPanel && (
+        {helpPanel ? (
           <div className="worker-alert worker-alert-info">
             <div className="worker-help-title">{helpPanel.title}</div>
             <p>{helpPanel.message}</p>
             <div className="worker-help-meta">
               <span>{helpPanel.departmentName}</span>
-              {helpPanel.contactPhone && <span>{helpPanel.contactPhone}</span>}
+              {helpPanel.contactPhone ? <span>{helpPanel.contactPhone}</span> : null}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

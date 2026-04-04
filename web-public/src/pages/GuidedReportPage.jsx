@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import api from "../api/api";
-import IntakeChat from "../components/IntakeChat";
-import LanguageSelector from "../components/LanguageSelector";
-import StructuredDraftPreview from "../components/StructuredDraftPreview";
 import ComplaintSubmissionSuccess from "../components/ComplaintSubmissionSuccess";
+import IntakeChat from "../components/IntakeChat";
+import { ArrowRightIcon, CheckIcon } from "../components/PublicIcons";
+import StructuredDraftPreview from "../components/StructuredDraftPreview";
+import { useCitizenI18n } from "../i18n";
 import { rememberTrackedComplaint } from "../utils/portalState";
 
-export default function GuidedReportPage({ onTrack }) {
-  const [language, setLanguage] = useState("en");
+export default function GuidedReportPage({ language, onTrack }) {
+  const { t } = useCitizenI18n();
   const [sessionToken, setSessionToken] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState({});
@@ -23,7 +24,7 @@ export default function GuidedReportPage({ onTrack }) {
   const [error, setError] = useState("");
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
-  const startSession = async (lang) => {
+  const startSession = async (selectedLanguage) => {
     setStarting(true);
     setError("");
     setMessages([]);
@@ -37,50 +38,20 @@ export default function GuidedReportPage({ onTrack }) {
     setShowLocationPicker(false);
 
     try {
-      const res = await api.post("/intake/start", { language: lang });
+      const res = await api.post("/intake/start", { language: selectedLanguage });
       const { session_token, greeting } = res.data.data;
       setSessionToken(session_token);
       setMessages([{ role: "assistant", content: greeting }]);
     } catch (err) {
-      setError(err?.response?.data?.message || err?.response?.data?.error || "Failed to start session. Please try again.");
+      setError(err?.response?.data?.message || err?.response?.data?.error || t("guided.error.start"));
     } finally {
       setStarting(false);
     }
   };
 
   useEffect(() => {
-    const initializeSession = async () => {
-      setStarting(true);
-      setError("");
-      setMessages([]);
-      setDraft({});
-      setIsComplete(false);
-      setShowPreview(false);
-      setSubmitted(null);
-      setAttachmentFile(null);
-      setAttachmentError("");
-      setSubmissionWarning("");
-      setShowLocationPicker(false);
-
-      try {
-        const res = await api.post("/intake/start", { language: "en" });
-        const { session_token, greeting } = res.data.data;
-        setSessionToken(session_token);
-        setMessages([{ role: "assistant", content: greeting }]);
-      } catch (err) {
-        setError(err?.response?.data?.message || err?.response?.data?.error || "Failed to start session. Please try again.");
-      } finally {
-        setStarting(false);
-      }
-    };
-
-    initializeSession();
-  }, []);
-
-  const handleLanguageChange = (lang) => {
-    setLanguage(lang);
-    startSession(lang);
-  };
+    void startSession(language || "en");
+  }, [language]);
 
   const handleSend = async (text, locationData = null) => {
     if (!sessionToken || typing) {
@@ -113,10 +84,7 @@ export default function GuidedReportPage({ onTrack }) {
         setShowLocationPicker(true);
       }
     } catch (err) {
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        content: "Sorry, I encountered an error. Please try again.",
-      }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: t("guided.error.reply") }]);
       setError(err?.response?.data?.message || err?.response?.data?.error || "");
     } finally {
       setTyping(false);
@@ -125,7 +93,7 @@ export default function GuidedReportPage({ onTrack }) {
 
   const handleLocationPicked = (locationData) => {
     const displayText = locationData.address_text || `${locationData.latitude.toFixed(5)}, ${locationData.longitude.toFixed(5)}`;
-    handleSend(`My location: ${displayText}`, locationData);
+    void handleSend(`My location: ${displayText}`, locationData);
   };
 
   const handleTrackStatus = () => {
@@ -154,7 +122,7 @@ export default function GuidedReportPage({ onTrack }) {
           uploadData.append("file", attachmentFile);
           await api.post(`/citizen-complaints/${complaint.id}/attachments`, uploadData);
         } catch {
-          warning = "Your complaint was submitted, but the evidence image could not be uploaded. Please keep the tracking ID and retry with a fresh report if the photo is essential.";
+          warning = t("guided.warning.attachment");
           setAttachmentError(warning);
         }
       }
@@ -163,7 +131,7 @@ export default function GuidedReportPage({ onTrack }) {
       setSubmissionWarning(warning);
       setSubmitted(complaint);
     } catch (err) {
-      setError(err?.response?.data?.message || err?.response?.data?.error || "Submission failed. Please try again.");
+      setError(err?.response?.data?.message || err?.response?.data?.error || t("guided.error.submit"));
     } finally {
       setSubmitting(false);
     }
@@ -171,11 +139,11 @@ export default function GuidedReportPage({ onTrack }) {
 
   if (submitted) {
     return (
-      <div className="container" style={{ paddingTop: 40 }}>
+      <div className="container guided-report-container guided-report-container-success">
         <ComplaintSubmissionSuccess
           complaint={submitted}
-          title="AI complaint submitted"
-          description="Your complaint has been received and will be reviewed by the relevant department."
+          title={t("guided.successTitle")}
+          description={t("guided.successDescription")}
           warning={submissionWarning}
           onTrack={handleTrackStatus}
           onReset={() => startSession(language)}
@@ -185,45 +153,21 @@ export default function GuidedReportPage({ onTrack }) {
   }
 
   return (
-    <div className="container" style={{ paddingTop: 24, paddingBottom: 40 }}>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+    <div className="container guided-report-container">
+      <div className="guided-report-header">
+        <div className="guided-report-header-copy">
           <div>
-            <h2 style={{ margin: 0, fontSize: 20, color: "var(--sl-ink-900)" }}>AI Complaint Assistant</h2>
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--sl-muted-500)" }}>
-              Tell me what happened. I will help prepare the complaint and collect the right location.
-            </p>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <LanguageSelector
-              value={language}
-              onChange={handleLanguageChange}
-              disabled={starting || typing}
-            />
+            <h2 className="guided-report-title">{t("guided.title")}</h2>
+            <p className="guided-report-subtitle">{t("guided.subtitle")}</p>
           </div>
         </div>
       </div>
 
-      {error && (
-        <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>
-      )}
+      {error ? <div className="alert alert-error guided-report-error">{error}</div> : null}
 
-      <div
-        style={{
-          background: "rgba(255,255,255,0.94)",
-          borderRadius: 12,
-          border: "1px solid var(--sl-line)",
-          boxShadow: "var(--sl-shadow)",
-          overflow: "hidden",
-          height: showLocationPicker ? 740 : 460,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
+      <div className={`guided-chat-shell ${showLocationPicker ? "has-location-picker" : ""}`}>
         {starting ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--sl-muted-500)", fontSize: 14 }}>
-            Starting AI assistant...
-          </div>
+          <div className="guided-chat-loading">{t("guided.starting")}</div>
         ) : (
           <IntakeChat
             messages={messages}
@@ -236,63 +180,47 @@ export default function GuidedReportPage({ onTrack }) {
         )}
       </div>
 
-      {!showPreview && sessionToken && (
-        <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {["department", "complaint type", "description", "location"].map((field, index) => {
-            const keys = ["department_id", "issue_type_id", "description", "address_text"];
-            const filled = !!draft[keys[index]];
+      {!showPreview && sessionToken ? (
+        <div className="guided-progress-strip">
+          {[
+            { field: t("guided.progress.department"), key: "department_id" },
+            { field: t("guided.progress.type"), key: "issue_type_id" },
+            { field: t("guided.progress.description"), key: "description" },
+            { field: t("guided.progress.location"), key: "address_text" },
+          ].map((item) => {
+            const filled = Boolean(draft[item.key]);
             return (
-              <div key={field} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: filled ? "var(--sl-green-900)" : "var(--sl-muted-500)" }}>
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: filled ? "var(--sl-green-900)" : "#d6c8b6",
-                  }}
-                />
-                {field}
-                {index < 3 && <span style={{ color: "#d6c8b6", marginLeft: 4 }}>{"\u2014"}</span>}
+              <div key={item.key} className={`guided-progress-chip ${filled ? "is-complete" : ""}`}>
+                <span className="guided-progress-dot">
+                  {filled ? <CheckIcon size={11} /> : null}
+                </span>
+                <span>{item.field}</span>
               </div>
             );
           })}
-          {isComplete && (
-            <button
-              onClick={() => setShowPreview(true)}
-              style={{
-                marginLeft: "auto",
-                padding: "4px 12px",
-                fontSize: 12,
-                fontWeight: 600,
-                background: "var(--sl-green-900)",
-                color: "var(--sl-white)",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                width: "auto",
-              }}
-            >
-              Review and Submit
+          {isComplete ? (
+            <button onClick={() => setShowPreview(true)} className="guided-review-btn">
+              <ArrowRightIcon size={16} />
+              {t("guided.review")}
             </button>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
 
-      {showPreview && Object.keys(draft).length > 0 && (
+      {showPreview && Object.keys(draft).length > 0 ? (
         <StructuredDraftPreview
           draft={draft}
           onSubmit={handleSubmit}
           onEdit={() => setShowPreview(false)}
           submitting={submitting}
           attachmentFile={attachmentFile}
-          onAttachmentChange={(file) => {
-            setAttachmentFile(file);
+          onAttachmentChange={(nextFile) => {
+            setAttachmentFile(nextFile);
             setAttachmentError("");
           }}
           attachmentError={attachmentError}
         />
-      )}
+      ) : null}
     </div>
   );
 }

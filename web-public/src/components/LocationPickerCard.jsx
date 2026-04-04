@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { useCitizenI18n } from "../i18n";
+import { ArrowRightIcon, CrosshairIcon, LocationIcon, TrashIcon } from "./PublicIcons";
 
 const pinIcon = L.divIcon({
   className: "",
@@ -35,7 +37,7 @@ async function reverseGeocode(lat, lng) {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
-      { headers: { "Accept-Language": "en" } }
+      { headers: { "Accept-Language": "en" } },
     );
     const data = await res.json();
     return data.display_name || null;
@@ -45,6 +47,7 @@ async function reverseGeocode(lat, lng) {
 }
 
 export default function LocationPickerCard({ onLocationPicked }) {
+  const { t } = useCitizenI18n();
   const [location, setLocation] = useState({
     latitude: null,
     longitude: null,
@@ -57,14 +60,14 @@ export default function LocationPickerCard({ onLocationPicked }) {
 
   const handleGPS = () => {
     if (!navigator.geolocation) {
-      alert("Geolocation not supported");
+      window.alert(t("location.error.unsupported"));
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
         setGeocoding(true);
         const address = await reverseGeocode(lat, lng);
         setGeocoding(false);
@@ -75,7 +78,7 @@ export default function LocationPickerCard({ onLocationPicked }) {
           location_source: "gps",
         });
       },
-      () => alert("Unable to get location. Please pin it on the map.")
+      () => window.alert(t("location.error.failed")),
     );
   };
 
@@ -107,77 +110,33 @@ export default function LocationPickerCard({ onLocationPicked }) {
   };
 
   return (
-    <div
-      style={{
-        background: "linear-gradient(180deg, #fffefb 0%, #fff7e9 100%)",
-        border: "1px solid #ead8bc",
-        borderRadius: 16,
-        overflow: "hidden",
-        marginBottom: 12,
-        width: "100%",
-        boxShadow: "0 12px 30px rgba(77, 34, 12, 0.08)",
-      }}
-    >
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid #efe2cf", background: "rgba(255,255,255,0.72)" }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: "#8a1538", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
-          Location needed
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#1f1720", marginBottom: 4 }}>
-          Drop a pin where the complaint happened
-        </div>
-        <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-          Use your current GPS location or tap directly on the map. The selected address stays visible until you confirm it.
+    <div className="location-picker-card">
+      <div className="location-picker-header">
+        <div className="location-picker-kicker">{t("location.kicker")}</div>
+        <div className="location-picker-title">{t("location.title")}</div>
+        <div className="location-picker-copy">{t("location.copy")}</div>
+      </div>
+
+      <div className="location-picker-actions">
+        <button type="button" onClick={handleGPS} className="citizen-action-btn is-primary">
+          <CrosshairIcon size={16} />
+          {t("location.useLocation")}
+        </button>
+        <button type="button" onClick={handleClear} disabled={!hasLocation} className="citizen-action-btn is-danger">
+          <TrashIcon size={16} />
+          {t("location.clear")}
+        </button>
+        <div className="location-picker-helper">
+          <LocationIcon size={14} />
+          {t("location.helper")}
         </div>
       </div>
 
-      <div style={{ padding: "12px 16px 0", display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={handleGPS}
-          style={{
-            padding: "8px 14px",
-            fontSize: 12,
-            fontWeight: 700,
-            background: "#1a56db",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            width: "auto",
-          }}
-        >
-          Use My Location
-        </button>
-        <button
-          type="button"
-          onClick={handleClear}
-          disabled={!hasLocation}
-          style={{
-            padding: "8px 14px",
-            fontSize: 12,
-            fontWeight: 700,
-            background: hasLocation ? "#fff" : "#f6f0e6",
-            color: hasLocation ? "#b42318" : "#9ca3af",
-            border: "1px solid #e5d3bf",
-            borderRadius: 8,
-            cursor: hasLocation ? "pointer" : "not-allowed",
-            fontFamily: "inherit",
-            width: "auto",
-          }}
-        >
-          Clear
-        </button>
-        <div style={{ fontSize: 12, color: "#6b7280", alignSelf: "center" }}>
-          Tap or click the map to place the marker.
-        </div>
-      </div>
-
-      <div style={{ padding: 16 }}>
+      <div className="location-picker-map-shell">
         <MapContainer
           center={hasLocation ? [location.latitude, location.longitude] : SRI_LANKA}
           zoom={hasLocation ? 16 : 8}
-          style={{ height: 320, width: "100%", borderRadius: 14 }}
+          className="location-picker-map"
           scrollWheelZoom
         >
           <TileLayer
@@ -185,77 +144,40 @@ export default function LocationPickerCard({ onLocationPicked }) {
             attribution="OpenStreetMap contributors"
           />
           <MapClickHandler onPick={handleMapClick} />
-          {hasLocation && (
+          {hasLocation ? (
             <>
               <RecenterMap lat={location.latitude} lng={location.longitude} />
               <Marker position={[location.latitude, location.longitude]} icon={pinIcon} />
             </>
-          )}
+          ) : null}
         </MapContainer>
       </div>
 
-      <div style={{ padding: "0 16px 16px" }}>
-        {geocoding && (
-          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 10 }}>Getting address...</div>
-        )}
+      <div className="location-picker-footer">
+        {geocoding ? <div className="location-picker-status">{t("location.status")}</div> : null}
 
-        {!hasLocation && !geocoding && (
-          <div
-            style={{
-              fontSize: 12,
-              color: "#6b7280",
-              background: "#fffdf8",
-              border: "1px dashed #e5d3bf",
-              borderRadius: 10,
-              padding: "10px 12px",
-              marginBottom: 10,
-            }}
-          >
-            No location selected yet. Pick a point on the map or use your current location.
-          </div>
-        )}
+        {!hasLocation && !geocoding ? (
+          <div className="location-picker-state">{t("location.empty")}</div>
+        ) : null}
 
-        {hasLocation && !geocoding && (
-          <div
-            style={{
-              fontSize: 12,
-              color: "#374151",
-              background: "#f0fdf4",
-              border: "1px solid #bbf7d0",
-              borderRadius: 10,
-              padding: "10px 12px",
-              marginBottom: 10,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            <span style={{ color: "#166534", fontWeight: 700 }}>Selected location</span>
+        {hasLocation && !geocoding ? (
+          <div className="location-picker-state is-selected">
+            <span className="location-picker-state-label">{t("location.selected")}</span>
             <span>{location.address_text}</span>
-            <span style={{ color: "#6b7280" }}>
+            <span className="location-picker-coordinates">
               {location.latitude?.toFixed(5)}, {location.longitude?.toFixed(5)}
             </span>
           </div>
-        )}
+        ) : null}
 
         <button
           type="button"
           onClick={handleConfirm}
           disabled={!hasLocation || geocoding}
-          style={{
-            width: "100%",
-            padding: "11px 0",
-            fontSize: 13,
-            fontWeight: 700,
-            background: hasLocation && !geocoding ? "#0e9f6e" : "#d1d5db",
-            color: hasLocation && !geocoding ? "#fff" : "#9ca3af",
-            border: "none",
-            borderRadius: 10,
-            cursor: hasLocation && !geocoding ? "pointer" : "not-allowed",
-            fontFamily: "inherit",
-          }}
+          className="location-picker-confirm-btn"
         >
-          Confirm Location
+          <ArrowRightIcon size={16} />
+          {t("location.confirm")}
         </button>
       </div>
     </div>
