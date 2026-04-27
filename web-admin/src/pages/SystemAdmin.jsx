@@ -31,7 +31,7 @@ function buildLogParams(filters) {
 }
 
 export default function SystemAdmin() {
-  const [activeView, setActiveView] = useState("create-department");
+  const [activeView, setActiveView] = useState("overview");
   const [departments, setDepartments] = useState([]);
   const [deptForm, setDeptForm] = useState(EMPTY_DEPARTMENT_FORM);
   const [adminForm, setAdminForm] = useState(EMPTY_ADMIN_FORM);
@@ -59,15 +59,18 @@ export default function SystemAdmin() {
   const [savingDepartment, setSavingDepartment] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [downloadingLogs, setDownloadingLogs] = useState(false);
+  const [openingRequestLetter, setOpeningRequestLetter] = useState(false);
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
 
   const navItems = [
-    { key: "create-department", label: "Create Department" },
-    { key: "create-admin", label: "Create Admin" },
-    { key: "departments", label: "Departments" },
+    { key: "overview", label: "Platform Overview" },
+    { key: "create-department", label: "Department Management" },
+    { key: "create-admin", label: "User Management" },
+    { key: "departments", label: "Department Directory" },
     { key: "password-requests", label: "Password Requests" },
-    { key: "monitoring", label: "Monitoring" },
+    { key: "monitoring", label: "Audit & Health" },
+    { key: "settings", label: "Platform Settings" },
   ];
 
   const showToast = useCallback((type, msg) => {
@@ -320,6 +323,28 @@ export default function SystemAdmin() {
     }
   }
 
+  async function openRequestLetter() {
+    if (!selectedRequest?.request_letter_url) {
+      return;
+    }
+
+    setOpeningRequestLetter(true);
+
+    try {
+      const res = await api.get(selectedRequest.request_letter_url, {
+        responseType: "blob",
+      });
+
+      const blobUrl = window.URL.createObjectURL(res.data);
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (err) {
+      showToast("error", err?.response?.data?.message || "Failed to open the uploaded request letter.");
+    } finally {
+      setOpeningRequestLetter(false);
+    }
+  }
+
   if (loadingPage) {
     return (
       <div className="sa-page">
@@ -383,6 +408,44 @@ export default function SystemAdmin() {
 
         <div className="sa-content-container">
           {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+
+          {activeView === "overview" && (
+            <div className="sa-monitor-wrap">
+              <div className="sa-overview-hero">
+                <div>
+                  <p className="section-title" style={{ marginBottom: 6 }}>System Admin Workspace</p>
+                  <h2>Platform Overview</h2>
+                  <p>
+                    Manage departments, department admins, password requests, audit activity, reports, and CivicLink health from one control panel.
+                  </p>
+                </div>
+                <span className="sa-role-pill">SYSTEM_ADMIN</span>
+              </div>
+
+              <div className="sa-monitor-grid">
+                <div className="sa-monitor-card">
+                  <div className="sa-overview-metric">{departments.length}</div>
+                  <div className="sa-overview-label">Departments</div>
+                  <p className="sa-overview-copy">Configured departments available to the routing system.</p>
+                </div>
+                <div className="sa-monitor-card">
+                  <div className="sa-overview-metric">{unreadRequestCount}</div>
+                  <div className="sa-overview-label">Unread Requests</div>
+                  <p className="sa-overview-copy">Department admin password requests awaiting review.</p>
+                </div>
+                <div className="sa-monitor-card">
+                  <div className="sa-overview-metric">{alerts.length}</div>
+                  <div className="sa-overview-label">Recent Alerts</div>
+                  <p className="sa-overview-copy">Current platform health and monitoring alerts.</p>
+                </div>
+                <div className="sa-monitor-card">
+                  <div className="sa-overview-metric">{departmentActivity.length}</div>
+                  <div className="sa-overview-label">Reporting Units</div>
+                  <p className="sa-overview-copy">Departments included in global activity reporting.</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {activeView === "create-department" && (
             <div className="sa-section sa-single-panel">
@@ -655,7 +718,17 @@ export default function SystemAdmin() {
                       <div className="sa-detail-box"><strong>Role in Department</strong><div>{selectedRequest.target_role}</div></div>
                       <div className="sa-detail-box"><strong>NIC Number</strong><div>{selectedRequest.nic_number}</div></div>
                       <div className="sa-detail-box"><strong>Mobile Number</strong><div>{selectedRequest.mobile_number}</div></div>
-                      <div className="sa-detail-box"><strong>Request Letter</strong><a href={selectedRequest.request_letter_url} target="_blank" rel="noreferrer">Open uploaded letter</a></div>
+                      <div className="sa-detail-box">
+                        <strong>Request Letter</strong>
+                        <button
+                          type="button"
+                          className="topbar-logout"
+                          onClick={openRequestLetter}
+                          disabled={openingRequestLetter}
+                        >
+                          {openingRequestLetter ? "Opening..." : "Open uploaded letter"}
+                        </button>
+                      </div>
                       <div className="sa-detail-box"><strong>Status</strong><div>{selectedRequest.status}</div></div>
                       <div className="sa-detail-box"><strong>Viewed</strong><div>{selectedRequest.viewed_at ? `${formatDateTime(selectedRequest.viewed_at)} by ${selectedRequest.viewed_by_name || "System Admin"}` : "Not viewed yet"}</div></div>
                       <div className="sa-detail-box"><strong>Completed</strong><div>{selectedRequest.completed_at ? `${formatDateTime(selectedRequest.completed_at)} by ${selectedRequest.completed_by_name || "System Admin"}` : "Not completed yet"}</div></div>
@@ -992,6 +1065,22 @@ export default function SystemAdmin() {
                     </table>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeView === "settings" && (
+            <div className="sa-section sa-single-panel">
+              <p className="section-title">Platform Settings</p>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>Operational Defaults</h2>
+              <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>
+                This area is reserved for global routing, SLA, language, and notification defaults. Current settings are enforced by the backend configuration and department records.
+              </p>
+              <div className="sa-detail-grid">
+                <div className="sa-detail-box"><strong>Portal Mode</strong><div>Role separated</div></div>
+                <div className="sa-detail-box"><strong>Citizen Routing</strong><div>AI assisted</div></div>
+                <div className="sa-detail-box"><strong>Admin Scope</strong><div>Platform-wide</div></div>
+                <div className="sa-detail-box"><strong>Monitoring</strong><div>{summary.length ? "Configured" : "No checks loaded"}</div></div>
               </div>
             </div>
           )}

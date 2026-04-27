@@ -1,5 +1,9 @@
 const { pool } = require("../config/db");
-const { sendNotification } = require("../utils/notificationService");
+const {
+  notifyCitizenComplaintStatus,
+  notifyWorkerAssignment,
+  sendNotification,
+} = require("../utils/notificationService");
 const { success, failure } = require("../utils/response");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
 const { ROOM_ADMINS, userRoom } = require("../utils/socketRooms");
@@ -16,7 +20,7 @@ exports.assignTask = async (req, res) => {
 
   try {
     const complaintResult = await client.query(
-      `SELECT id, department_id, status
+      `SELECT id, department_id, reporter_user_id, title, status
        FROM complaints
        WHERE id = $1`,
       [complaint_id]
@@ -110,6 +114,20 @@ exports.assignTask = async (req, res) => {
     io.to(ROOM_ADMINS).emit("task_assigned", assignmentPayload);
     io.to(userRoom(worker_user_id)).emit("task_assigned", assignmentPayload);
 
+    await notifyWorkerAssignment({
+      workerUserId: worker_user_id,
+      assignmentId: result.rows[0].id,
+      complaintId: complaint_id,
+      title: complaint.title,
+    });
+
+    await notifyCitizenComplaintStatus({
+      citizenUserId: complaint.reporter_user_id,
+      complaintId: complaint_id,
+      status: "ASSIGNED",
+      title: complaint.title,
+    });
+
     sendNotification("Task assigned to worker");
 
     return success(res, assignmentPayload, 201);
@@ -170,7 +188,7 @@ exports.updateTaskStatus = async (req, res) => {
 
   try {
     const assignmentCheck = await client.query(
-      `SELECT ca.id, ca.complaint_id, c.status AS complaint_status
+      `SELECT ca.id, ca.complaint_id, c.status AS complaint_status, c.reporter_user_id, c.title
        FROM complaint_assignments ca
        JOIN complaints c ON c.id = ca.complaint_id
        WHERE ca.id = $1 AND ca.worker_user_id = $2`,
@@ -218,6 +236,13 @@ exports.updateTaskStatus = async (req, res) => {
     const io = req.app.get("io");
     io.to(ROOM_ADMINS).emit("status_updated", result.rows[0]);
     io.to(userRoom(req.user.id)).emit("status_updated", result.rows[0]);
+
+    await notifyCitizenComplaintStatus({
+      citizenUserId: assignmentCheck.rows[0].reporter_user_id,
+      complaintId: result.rows[0].complaint_id,
+      status: complaintStatus,
+      title: assignmentCheck.rows[0].title,
+    });
 
     sendNotification(`Task status updated to ${status}`);
 

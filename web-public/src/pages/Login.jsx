@@ -28,6 +28,7 @@ import {
   getPendingSignupLanguage,
   setPendingSignupLanguage,
 } from "../utils/language";
+import { requestCitizenMobileGoogleSignIn } from "../utils/mobileBridge";
 
 const INITIAL_VERIFICATION_STATE = {
   email: "",
@@ -345,6 +346,12 @@ export default function Login({ onLoggedIn }) {
   };
 
   const handleGoogleLogin = async () => {
+    if (requestCitizenMobileGoogleSignIn({ preferred_language: getPendingSignupLanguage() || regForm.preferred_language })) {
+      clearFeedback();
+      setSuccess("Continue in the Google sign-in prompt.");
+      return;
+    }
+
     if (!isFirebaseConfigured() || !auth || !googleProvider) {
       setError(firebaseConfigError || t("auth.error.firebase"));
       return;

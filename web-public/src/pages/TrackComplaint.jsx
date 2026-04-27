@@ -10,8 +10,9 @@ import {
 } from "../components/PublicIcons";
 import {
   getLastTrackedComplaintId,
+  getRecentComplaintDetails,
   getRecentComplaintRefs,
-  rememberTrackedComplaint,
+  rememberTrackedComplaintDetail,
   removeRecentComplaintRef,
   setLastTrackedComplaintId,
 } from "../utils/portalState";
@@ -107,10 +108,51 @@ function Timeline({ events, formatDateTime, t }) {
   );
 }
 
+function PastComplaintList({ refs, details, activeId, onOpen, onRemove, formatDateTime, t }) {
+  if (!refs.length) {
+    return null;
+  }
+
+  return (
+    <div className="track-past-complaints">
+      <div className="track-recent-refs-title">{t("track.pastComplaints")}</div>
+      <div className="track-past-list">
+        {refs.map((ref) => {
+          const detail = details[ref] || { id: ref };
+          return (
+            <article key={ref} className={`track-past-card ${ref === activeId ? "is-active" : ""}`}>
+              <button type="button" className="track-past-main" onClick={() => onOpen(ref)}>
+                <span className="track-past-title">{detail.title || t("track.untitledPast")}</span>
+                <span className="track-past-id">{ref}</span>
+                <span className="track-past-meta">
+                  {detail.status ? detail.status.replace(/_/g, " ") : t("track.statusUnknown")}
+                  {detail.submitted_at ? ` - ${formatDateTime(detail.submitted_at)}` : ""}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="track-past-remove"
+                onClick={() => onRemove(ref)}
+                aria-label={t("track.removePast")}
+              >
+                <CloseIcon size={14} />
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function TrackComplaint() {
-  const { t, formatDateTime, formatStatusLabel } = useCitizenI18n();
-  const [complaintId, setComplaintId] = useState(() => getLastTrackedComplaintId());
+  const { t, formatDateTime } = useCitizenI18n();
+  const [complaintId, setComplaintId] = useState(() => {
+    const match = window.location.pathname.match(/^\/track\/([^/]+)/);
+    return match ? decodeURIComponent(match[1]) : getLastTrackedComplaintId();
+  });
   const [recentRefs, setRecentRefs] = useState(() => getRecentComplaintRefs());
+  const [recentDetails, setRecentDetails] = useState(() => getRecentComplaintDetails());
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -158,12 +200,12 @@ export default function TrackComplaint() {
   }, [result]);
 
   const statusMeta = {
-    SUBMITTED: { label: t("status.submitted"), color: "#1e40af", bg: "#eff6ff" },
-    ASSIGNED: { label: t("status.assigned"), color: "#5b21b6", bg: "#f5f3ff" },
-    IN_PROGRESS: { label: t("status.inProgress"), color: "#164e63", bg: "#ecfeff" },
-    RESOLVED: { label: t("status.resolved"), color: "#065f46", bg: "#ecfdf5" },
-    CLOSED: { label: t("status.closed"), color: "#374151", bg: "#f3f4f6" },
-    REJECTED_WRONG_DEPARTMENT: { label: t("status.rejected"), color: "#991b1b", bg: "#fef2f2" },
+    SUBMITTED: { label: t("status.submitted"), color: "#8a1538", bg: "#fff0c7" },
+    ASSIGNED: { label: t("status.assigned"), color: "#0c5b55", bg: "#eff8ef" },
+    IN_PROGRESS: { label: t("status.inProgress"), color: "#8a1538", bg: "#f7e2a0" },
+    RESOLVED: { label: t("status.resolved"), color: "#14532d", bg: "#eff8ef" },
+    CLOSED: { label: t("status.closed"), color: "#4f3f4f", bg: "#f4eadb" },
+    REJECTED_WRONG_DEPARTMENT: { label: t("status.rejected"), color: "#7f1d1d", bg: "#fff1ef" },
   };
 
   const statusDescriptions = {
@@ -183,6 +225,7 @@ export default function TrackComplaint() {
 
   const syncRecentRefs = () => {
     setRecentRefs(getRecentComplaintRefs());
+    setRecentDetails(getRecentComplaintDetails());
   };
 
   const pruneStoredComplaintId = (id) => {
@@ -207,7 +250,7 @@ export default function TrackComplaint() {
 
       const res = await api.get(`/citizen-complaints/track/${normalizedId}`);
       setResult(res.data.data);
-      rememberTrackedComplaint(normalizedId);
+      rememberTrackedComplaintDetail(res.data.data?.complaint || { id: normalizedId });
       syncRecentRefs();
     } catch (err) {
       const status = err?.response?.status;
@@ -224,7 +267,8 @@ export default function TrackComplaint() {
   };
 
   useEffect(() => {
-    const lastTrackedId = getLastTrackedComplaintId();
+    const pathMatch = window.location.pathname.match(/^\/track\/([^/]+)/);
+    const lastTrackedId = pathMatch ? decodeURIComponent(pathMatch[1]) : getLastTrackedComplaintId();
     if (!lastTrackedId) {
       return;
     }
@@ -289,23 +333,21 @@ export default function TrackComplaint() {
           </button>
         </div>
 
-        {recentRefs.length > 0 ? (
-          <div className="track-recent-refs">
-            <div className="track-recent-refs-title">{t("track.recent")}</div>
-            <div className="track-recent-refs-list">
-              {recentRefs.map((ref) => (
-                <button
-                  key={ref}
-                  type="button"
-                  onClick={() => trackComplaint(ref, { fromStored: true })}
-                  className={`track-ref-chip ${ref === complaintId ? "is-active" : ""}`}
-                >
-                  {ref}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
+        <PastComplaintList
+          refs={recentRefs}
+          details={recentDetails}
+          activeId={complaintId}
+          onOpen={(ref) => trackComplaint(ref, { fromStored: true })}
+          onRemove={(ref) => {
+            pruneStoredComplaintId(ref);
+            if (ref === complaintId) {
+              setComplaintId("");
+              setResult(null);
+            }
+          }}
+          formatDateTime={formatDateTime}
+          t={t}
+        />
 
         {error ? <div className="alert alert-error" style={{ marginTop: 14 }}>{error}</div> : null}
       </div>

@@ -21,6 +21,7 @@ import {
 } from "./utils/auth";
 import { getActiveCitizenTab, setActiveCitizenTab } from "./utils/portalState";
 import { applyLanguage, getStoredLanguage, setStoredLanguage } from "./utils/language";
+import { postCitizenMobileLogout, postCitizenMobileSession } from "./utils/mobileBridge";
 
 function buildStoredUser() {
   return {
@@ -30,10 +31,18 @@ function buildStoredUser() {
   };
 }
 
+function getInitialCitizenTab() {
+  if (window.location.pathname.startsWith("/track/")) {
+    return "track";
+  }
+
+  return getActiveCitizenTab();
+}
+
 function App() {
   const [bootState, setBootState] = useState(() => (isCitizenAuthenticated() ? "booting" : "guest"));
   const [user, setUser] = useState(() => buildStoredUser());
-  const [menu, setMenu] = useState(() => getActiveCitizenTab());
+  const [menu, setMenu] = useState(() => getInitialCitizenTab());
   const [language, setLanguage] = useState(() => getPreferredLanguage() || getStoredLanguage());
   const [authNoticeKey, setAuthNoticeKey] = useState("");
   const [settingsState, setSettingsState] = useState({ saving: false, error: "", success: "" });
@@ -51,7 +60,6 @@ function App() {
 
   useEffect(() => {
     if (!isCitizenAuthenticated()) {
-      setBootState("guest");
       return;
     }
 
@@ -78,6 +86,7 @@ function App() {
             setStoredLanguage(nextLanguage);
             setLanguage(nextLanguage);
           }
+          postCitizenMobileSession({ preferred_language: nextLanguage });
           setBootState(nextUser.preferred_language ? "authed" : "needs_language");
         }
       } catch {
@@ -113,6 +122,7 @@ function App() {
       setMenu("submit");
       setActiveCitizenTab("submit");
       setAuthNoticeKey("auth.success.signedIn");
+      postCitizenMobileSession({ preferred_language: sessionPayload.preferred_language });
       setBootState("authed");
     } else {
       setBootState("needs_language");
@@ -137,6 +147,7 @@ function App() {
       ...updatedUser,
       preferred_language: updatedUser?.preferred_language || nextLanguage,
     }));
+    postCitizenMobileSession({ preferred_language: updatedUser?.preferred_language || nextLanguage });
   }, [applySelectedLanguage, user.name, user.role]);
 
   const handleSetupContinue = async () => {
@@ -188,6 +199,7 @@ function App() {
     setMenu("submit");
     setActiveCitizenTab("submit");
     setAuthNoticeKey("");
+    postCitizenMobileLogout();
     setBootState("guest");
   };
 

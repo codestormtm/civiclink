@@ -13,8 +13,10 @@ import { useCallback, useEffect, useState } from "react";
 import api from "../api/api";
 import { useWorkerI18n } from "../i18n";
 import ComplaintTimeline from "../components/ComplaintTimeline";
+import OfflineSyncStatus from "../components/OfflineSyncStatus";
 import StatusBadge from "../components/StatusBadge";
 import WorkerHeader from "../components/WorkerHeader";
+import { queueEvidenceUpload, queueStatusUpdate } from "../utils/offlineQueue";
 
 function buildMapsUrl(latitude, longitude) {
   return `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
@@ -66,6 +68,9 @@ export default function WorkerTaskDetail({
   onOpenSettings,
   notificationPermission,
   onEnableNotifications,
+  syncState,
+  onSyncStateChange,
+  onFlushQueue,
 }) {
   const { t, formatDateTime } = useWorkerI18n();
   const [data, setData] = useState(null);
@@ -134,6 +139,14 @@ export default function WorkerTaskDetail({
   }, [attachments]);
 
   const updateStatus = async (status) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const snapshot = queueStatusUpdate({ taskId, status, note });
+      onSyncStateChange?.(snapshot);
+      setMessage({ type: "info", text: t("sync.queuedStatus") });
+      setNote("");
+      return;
+    }
+
     try {
       await api.patch(`/worker/assignments/${taskId}/status`, { status, note });
       setMessage({
@@ -143,6 +156,14 @@ export default function WorkerTaskDetail({
       setNote("");
       fetchTask();
     } catch (err) {
+      if (!err?.response) {
+        const snapshot = queueStatusUpdate({ taskId, status, note });
+        onSyncStateChange?.(snapshot);
+        setMessage({ type: "info", text: t("sync.queuedStatus") });
+        setNote("");
+        return;
+      }
+
       setMessage({
         type: "error",
         text: err?.response?.data?.error || t("task.statusFailed"),
@@ -156,6 +177,15 @@ export default function WorkerTaskDetail({
       return;
     }
 
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const snapshot = await queueEvidenceUpload({ taskId, file, attachmentRole });
+      onSyncStateChange?.(snapshot);
+      setFile(null);
+      setAttachmentRole("AFTER");
+      setMessage({ type: "info", text: t("sync.queuedEvidence") });
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -166,6 +196,15 @@ export default function WorkerTaskDetail({
       setMessage({ type: "success", text: t("task.uploaded") });
       fetchTask();
     } catch (err) {
+      if (!err?.response) {
+        const snapshot = await queueEvidenceUpload({ taskId, file, attachmentRole });
+        onSyncStateChange?.(snapshot);
+        setFile(null);
+        setAttachmentRole("AFTER");
+        setMessage({ type: "info", text: t("sync.queuedEvidence") });
+        return;
+      }
+
       setMessage({
         type: "error",
         text: err?.response?.data?.error || t("task.uploadFailed"),
@@ -242,6 +281,8 @@ export default function WorkerTaskDetail({
       />
 
       <main className="worker-wrap worker-stack-lg">
+        <OfflineSyncStatus syncState={syncState} onFlushQueue={onFlushQueue} />
+
         <section className="worker-hero-card worker-hero-card-detail">
           <div className="worker-hero-copy">
             <div className="worker-kicker">{t("task.kicker")}</div>
@@ -252,6 +293,9 @@ export default function WorkerTaskDetail({
           </div>
           <div className="worker-hero-meta">
             <StatusBadge status={assignment.complaint_status} />
+            <span className="worker-priority-chip">
+              {t("task.priority")}: {assignment.priority_level || t("task.priorityFallback")}
+            </span>
             <p className="worker-hero-note">{t("task.heroNote")}</p>
           </div>
         </section>
@@ -262,6 +306,33 @@ export default function WorkerTaskDetail({
           <div className="worker-section-title">
             <Wrench size={18} aria-hidden="true" />
             <span>{t("task.details")}</span>
+          </div>
+
+          <div className="worker-field-brief">
+            <div className="worker-citizen-photo">
+              <div className="worker-meta-label">{t("task.citizenPhoto")}</div>
+              {imageAttachments[0] && imagePreviewUrls[imageAttachments[0].id] ? (
+                <button
+                  type="button"
+                  className="worker-citizen-photo-btn"
+                  onClick={() => setSelectedImageId(imageAttachments[0].id)}
+                >
+                  <img
+                    src={imagePreviewUrls[imageAttachments[0].id]}
+                    alt={t("task.imageAlt", { count: 1 })}
+                  />
+                </button>
+              ) : (
+                <div className="worker-citizen-photo-empty">{t("task.noCitizenPhoto")}</div>
+              )}
+            </div>
+
+            <div className="worker-evidence-checklist">
+              <div className="worker-meta-label">{t("task.evidenceChecklist")}</div>
+              <div><CheckCircle2 size={16} aria-hidden="true" />{t("task.evidenceBefore")}</div>
+              <div><CheckCircle2 size={16} aria-hidden="true" />{t("task.evidenceAfter")}</div>
+              <div><CheckCircle2 size={16} aria-hidden="true" />{t("task.evidenceNote")}</div>
+            </div>
           </div>
 
           <div className="worker-detail-grid">

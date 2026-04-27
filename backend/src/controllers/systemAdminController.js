@@ -1,7 +1,11 @@
 const bcrypt = require("bcrypt");
+const path = require("path");
 
 const { pool } = require("../config/db");
+const { minioClient, bucketName: BUCKET } = require("../config/minio");
 const { ensurePasswordResetSchema } = require("../services/passwordResetService");
+const { extractObjectName } = require("../utils/attachmentStorage");
+const { getRequestOrigin } = require("../utils/requestOrigin");
 const { success, failure } = require("../utils/response");
 
 const PASSWORD_RESET_SELECT = `
@@ -40,6 +44,49 @@ async function getPasswordResetRequestById(client, requestId) {
   return result.rows[0] || null;
 }
 
+function buildPasswordResetRequestLetterUrl(requestId, req) {
+  const baseUrl = String(getRequestOrigin(req) || "").replace(/\/+$/, "");
+  const relativeUrl = `/api/system-admin/password-reset-requests/${requestId}/request-letter`;
+
+  if (!baseUrl) {
+    return relativeUrl;
+  }
+
+  return `${baseUrl}${relativeUrl}`;
+}
+
+function mapPasswordResetRequestForResponse(requestRow, req) {
+  if (!requestRow) {
+    return requestRow;
+  }
+
+  return {
+    ...requestRow,
+    request_letter_url: buildPasswordResetRequestLetterUrl(requestRow.id, req),
+    request_letter_object_key: extractObjectName(requestRow.request_letter_url) || null,
+  };
+}
+
+function inferContentTypeFromObjectName(objectName) {
+  const extension = path.extname(String(objectName || "")).toLowerCase();
+
+  switch (extension) {
+    case ".pdf":
+      return "application/pdf";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".webp":
+      return "image/webp";
+    case ".gif":
+      return "image/gif";
+    default:
+      return "application/octet-stream";
+  }
+}
+
 exports.createDeptAdmin = async (req, res) => {
   const { name, email, password, department_id } = req.body;
 
@@ -73,7 +120,7 @@ exports.listPasswordResetRequests = async (_req, res) => {
        ORDER BY prr.created_at DESC`
     );
 
-    return success(res, result.rows);
+    return success(res, result.rows.map((row) => mapPasswordResetRequestForResponse(row, _req)));
   } catch (err) {
     return failure(res, err.message);
   }
@@ -107,7 +154,7 @@ exports.getPasswordResetRequest = async (req, res) => {
       return failure(res, "Password reset request not found", 404);
     }
 
-    return success(res, requestRow);
+    return success(res, mapPasswordResetRequestForResponse(requestRow, req));
   } catch (err) {
     return failure(res, err.message);
   }
@@ -134,7 +181,7 @@ exports.markPasswordResetRequestViewed = async (req, res) => {
     }
 
     const requestRow = await getPasswordResetRequestById(pool, id);
-    return success(res, requestRow);
+    return success(res, mapPasswordResetRequestForResponse(requestRow, req));
   } catch (err) {
     return failure(res, err.message);
   }
@@ -226,7 +273,12 @@ exports.resetPasswordFromRequest = async (req, res) => {
     transactionStarted = false;
 
     const updatedRequest = await getPasswordResetRequestById(pool, id);
-    return success(res, updatedRequest, 200, "Password reset completed successfully");
+    return success(
+      res,
+      mapPasswordResetRequestForResponse(updatedRequest, req),
+      200,
+      "Password reset completed successfully"
+    );
   } catch (err) {
     if (transactionStarted) {
       await client.query("ROLLBACK");
@@ -234,5 +286,42 @@ exports.resetPasswordFromRequest = async (req, res) => {
     return failure(res, err.message);
   } finally {
     client.release();
+  }
+};
+
+exports.viewPasswordResetRequestLetter = async (req, res) => {
+  try {
+    await ensurePasswordResetSchema();
+
+    const requestRow = await getPasswordResetRequestById(pool, req.params.id);
+
+    if (!requestRow) {
+      return failure(res, "Password reset request not found", 404);
+    }
+
+    const objectName = extractObjectName(requestRow.request_letter_url);
+
+    if (!objectName) {
+      return failure(res, "Request letter file is missing", 404);
+    }
+
+    const objectStream = await minioClient.getObject(BUCKET, objectName);
+
+    res.setHeader("Content-Type", inferContentTypeFromObjectName(objectName));
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Cache-Control", "private, no-store");
+
+    objectStream.on("error", () => {
+      if (!res.headersSent) {
+        res.status(500).end();
+      } else {
+        res.destroy();
+      }
+    });
+
+    objectStream.pipe(res);
+    return null;
+  } catch (err) {
+    return failure(res, err.message || "Failed to load request letter", 404);
   }
 };

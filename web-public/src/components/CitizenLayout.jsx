@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { clearCitizenSession } from "../utils/auth";
+import { postCitizenMobileLogout } from "../utils/mobileBridge";
 import { setActiveCitizenTab } from "../utils/portalState";
 import {
   AssistantIcon,
@@ -7,6 +8,7 @@ import {
   ComplaintIcon,
   LogoutIcon,
   MenuIcon,
+  SearchIcon,
   SettingsIcon,
   TrackIcon,
 } from "./PublicIcons";
@@ -52,6 +54,7 @@ export default function CitizenLayout({
     }
 
     setLoggingOut(true);
+    postCitizenMobileLogout();
     await clearCitizenSession();
     onLoggedOut();
   };
@@ -109,21 +112,30 @@ export default function CitizenLayout({
       <div className={`citizen-drawer-backdrop ${drawerOpen ? "is-open" : ""}`} onClick={() => setDrawerOpen(false)}>
         <aside className={`citizen-drawer ${drawerOpen ? "is-open" : ""}`} onClick={(event) => event.stopPropagation()}>
           <div className="citizen-drawer-header">
-            <div className="navbar-brand">
-              <div className="navbar-logo">C</div>
-              <div>
-                <div className="navbar-name">{t("portal.brand")}</div>
-                <div className="navbar-sub">{t("portal.citizen")}</div>
-              </div>
-            </div>
             <button
               type="button"
-              className="citizen-menu-toggle citizen-menu-toggle-inline"
+              className="citizen-menu-toggle citizen-menu-toggle-inline citizen-drawer-menu-circle"
               onClick={() => setDrawerOpen(false)}
               aria-label={t("layout.closeMenu")}
             >
-              <CloseIcon size={18} />
+              <MenuIcon size={19} />
             </button>
+            <button
+              type="button"
+              className="citizen-drawer-search"
+              onClick={() => handleSelectMenu("track")}
+              aria-label={t("layout.track")}
+            >
+              <SearchIcon size={18} />
+            </button>
+          </div>
+
+          <div className="citizen-drawer-brand">
+            <div className="navbar-logo">C</div>
+            <div>
+              <div className="navbar-name">{t("portal.brand")}</div>
+              <div className="navbar-sub">{t("portal.citizen")}</div>
+            </div>
           </div>
 
           <div className="citizen-drawer-nav">

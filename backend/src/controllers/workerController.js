@@ -2,8 +2,8 @@ const { pool } = require("../config/db");
 const bcrypt = require("bcrypt");
 const { minioClient, bucketName: BUCKET } = require("../config/minio");
 const { success, failure } = require("../utils/response");
+const { buildStoredObjectReference } = require("../utils/attachmentStorage");
 
-const MINIO_URL = process.env.MINIO_URL || "http://localhost:9000";
 let terminationTableReadyPromise = null;
 
 function ensureWorkerTerminationTableExists() {
@@ -442,14 +442,14 @@ exports.createWorker = async (req, res) => {
       const file = req.files.profile_picture[0];
       const fileName = `profile-${Date.now()}-${file.originalname}`;
       await minioClient.putObject(BUCKET, fileName, file.buffer);
-      profileUrl = `${MINIO_URL}/${BUCKET}/${fileName}`;
+      profileUrl = buildStoredObjectReference(fileName);
     }
 
     if (req.files?.nic_copy) {
       const file = req.files.nic_copy[0];
       const fileName = `nic-${Date.now()}-${file.originalname}`;
       await minioClient.putObject(BUCKET, fileName, file.buffer);
-      nicUrl = `${MINIO_URL}/${BUCKET}/${fileName}`;
+      nicUrl = buildStoredObjectReference(fileName);
     }
 
     await client.query("BEGIN");

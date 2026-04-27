@@ -35,6 +35,11 @@ function getFirebaseAuth() {
   return app ? admin.auth(app) : null;
 }
 
+function getFirebaseMessaging() {
+  const app = getFirebaseAdminApp();
+  return app ? admin.messaging(app) : null;
+}
+
 async function verifyFirebaseIdToken(idToken) {
   const auth = getFirebaseAuth();
 
@@ -47,6 +52,7 @@ async function verifyFirebaseIdToken(idToken) {
 
 module.exports = {
   getFirebaseAuth,
+  getFirebaseMessaging,
   isFirebaseAuthEnabled,
   verifyFirebaseIdToken,
 };

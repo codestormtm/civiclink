@@ -7,6 +7,24 @@ const runningInDocker = existsSync("/.dockerenv");
 const runningInWsl = Boolean(process.env.WSL_DISTRO_NAME) || os.release().toLowerCase().includes("microsoft");
 const LOCALHOST_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const DEV_FRONTEND_PORTS = [5173, 5174, 5175];
+const VIRTUAL_INTERFACE_PATTERNS = [
+  /virtual/i,
+  /vbox/i,
+  /vmware/i,
+  /hyper-v/i,
+  /vethernet/i,
+  /\bwsl\b/i,
+  /docker/i,
+  /loopback/i,
+  /pseudo/i,
+  /\btap\b/i,
+  /\btun\b/i,
+  /tailscale/i,
+  /zerotier/i,
+  /hamachi/i,
+];
+const WIFI_INTERFACE_PATTERNS = [/\bwi-?fi\b/i, /\bwlan\b/i, /\bwireless\b/i];
+const ETHERNET_INTERFACE_PATTERNS = [/\bethernet\b/i, /\blan\b/i];
 
 function detectWslHostIp() {
   try {
@@ -36,9 +54,9 @@ function isPrivateIpv4(address) {
 
 function getLanIpv4Addresses() {
   const interfaces = os.networkInterfaces();
-  const addresses = [];
+  const candidates = [];
 
-  Object.values(interfaces).forEach((entries) => {
+  Object.entries(interfaces).forEach(([interfaceName, entries]) => {
     (entries || []).forEach((entry) => {
       const family = typeof entry.family === "string"
         ? entry.family
@@ -48,11 +66,34 @@ function getLanIpv4Addresses() {
         return;
       }
 
-      addresses.push(entry.address);
+      const normalizedInterfaceName = String(interfaceName || "").trim();
+      let score = 0;
+
+      if (WIFI_INTERFACE_PATTERNS.some((pattern) => pattern.test(normalizedInterfaceName))) {
+        score += 300;
+      }
+
+      if (ETHERNET_INTERFACE_PATTERNS.some((pattern) => pattern.test(normalizedInterfaceName))) {
+        score += 150;
+      }
+
+      if (VIRTUAL_INTERFACE_PATTERNS.some((pattern) => pattern.test(normalizedInterfaceName))) {
+        score -= 500;
+      }
+
+      if (entry.address.startsWith("192.168.")) {
+        score += 25;
+      }
+
+      candidates.push({
+        address: entry.address,
+        score,
+      });
     });
   });
 
-  return Array.from(new Set(addresses));
+  candidates.sort((left, right) => right.score - left.score);
+  return Array.from(new Set(candidates.map((candidate) => candidate.address)));
 }
 
 function parseUrl(value) {
@@ -228,7 +269,10 @@ const firebaseProjectId = process.env.FIREBASE_PROJECT_ID
   || firebaseServiceAccount?.projectId
   || "";
 const defaultMinioPublicUrl = `http://localhost:${process.env.MINIO_PORT || 9000}`;
-const resolvedMinioPublicUrl = process.env.MINIO_PUBLIC_URL || defaultMinioPublicUrl;
+const resolvedMinioPublicUrl = replaceLoopbackHostname(
+  process.env.MINIO_PUBLIC_URL || defaultMinioPublicUrl,
+  defaultMonitoringHost
+);
 const parsedMinioPublicUrl = parseUrl(resolvedMinioPublicUrl);
 const trustedOriginHosts = Array.from(
   new Set(

@@ -82,6 +82,7 @@ export default function StructuredDraftPreview({
           <input
             type="file"
             accept="image/*"
+            capture="environment"
             onChange={(event) => onAttachmentChange(event.target.files?.[0] || null)}
           />
         </label>

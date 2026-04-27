@@ -74,6 +74,18 @@ body {
   gap: 10px;
 }
 
+.sidebar-brand span {
+  display: grid;
+  gap: 2px;
+}
+
+.sidebar-brand small {
+  color: #cfe5d8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
 .sidebar-brand-icon {
   width: 32px;
   height: 32px;
@@ -224,6 +236,34 @@ body {
   max-width: 1000px;
   margin: 28px auto;
   padding: 0 28px;
+}
+
+.dept-workspace-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.dept-workspace-heading h2 {
+  margin: 4px 0 0;
+  color: var(--sl-ink-900);
+  font-size: 24px;
+}
+
+.dept-scope-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #98c9aa;
+  background: var(--sl-success-bg);
+  color: var(--sl-success-text);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 /* ── Section title ── */
@@ -590,6 +630,52 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+}
+
+.sa-overview-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #c7ddff;
+  border-radius: 18px;
+  background: #eff6ff;
+  margin-bottom: 22px;
+}
+
+.sa-overview-hero h2 {
+  margin: 0 0 8px;
+  color: var(--sl-ink-900);
+  font-size: 26px;
+}
+
+.sa-overview-hero p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--sl-ink-700);
+  line-height: 1.6;
+}
+
+.sa-overview-metric {
+  color: var(--sl-ink-900);
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.sa-overview-label {
+  margin-top: 4px;
+  color: var(--sl-ink-700);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sa-overview-copy {
+  margin: 10px 0 0;
+  color: var(--sl-muted-500);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .sa-kv-row {

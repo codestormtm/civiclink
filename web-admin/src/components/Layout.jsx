@@ -5,8 +5,11 @@ export default function Layout({ children }) {
   const [menu, setMenu] = useState("dashboard");
 
   const navItems = [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "workers", label: "Workers" },
+    { key: "dashboard", label: "Overview" },
+    { key: "queue", label: "Issue Queue" },
+    { key: "map", label: "Active Map" },
+    { key: "sla", label: "SLA Alerts" },
+    { key: "workers", label: "Staff" },
     { key: "reports", label: "Reports" },
   ];
 
@@ -15,7 +18,10 @@ export default function Layout({ children }) {
       <div className="sidebar">
         <div className="sidebar-brand">
           <div className="sidebar-brand-icon">C</div>
-          CivicLink
+          <span>
+            CivicLink
+            <small>Department Admin</small>
+          </span>
         </div>
 
         <nav className="sidebar-nav">

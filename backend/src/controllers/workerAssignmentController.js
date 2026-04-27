@@ -24,6 +24,7 @@ const {
   resolveAttachmentRole,
 } = require("../utils/attachmentStorage");
 const { getRequestOrigin } = require("../utils/requestOrigin");
+const { notifyCitizenComplaintStatus } = require("../utils/notificationService");
 const { ROOM_ADMINS, userRoom } = require("../utils/socketRooms");
 
 // GET /api/worker/assignments
@@ -164,7 +165,12 @@ exports.updateMyAssignmentStatus = async (req, res) => {
   let transactionStarted = false;
   try {
     const assignmentResult = await client.query(
-      `SELECT ca.id, ca.complaint_id, ca.status AS assignment_status, c.status AS complaint_status
+      `SELECT ca.id,
+              ca.complaint_id,
+              ca.status AS assignment_status,
+              c.status AS complaint_status,
+              c.reporter_user_id,
+              c.title
        FROM complaint_assignments ca
        JOIN complaints c ON c.id = ca.complaint_id
        WHERE ca.id = $1 AND ca.worker_user_id = $2`,
@@ -223,6 +229,13 @@ exports.updateMyAssignmentStatus = async (req, res) => {
       io.to(ROOM_ADMINS).emit("status_updated", eventPayload);
       io.to(userRoom(workerUserId)).emit("status_updated", eventPayload);
     }
+
+    await notifyCitizenComplaintStatus({
+      citizenUserId: assignment.reporter_user_id,
+      complaintId: assignment.complaint_id,
+      status: complaintStatus,
+      title: assignment.title,
+    });
 
     return res.json({
       success: true,

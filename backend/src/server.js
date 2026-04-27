@@ -13,6 +13,7 @@ const { ensureFirebaseAuthSchema } = require("./services/firebaseAuthSchemaServi
 const { ensureMonitoringSchema, startMonitoringLoop } = require("./services/monitoringService");
 const { ensurePasswordResetSchema } = require("./services/passwordResetService");
 const { ensureUserPreferencesSchema } = require("./services/userPreferencesSchemaService");
+const { ensureMobileDeviceTokenSchema } = require("./services/mobileDeviceTokenSchemaService");
 const logger = require("./utils/logger");
 
 const server = http.createServer(app);
@@ -102,6 +103,7 @@ async function start() {
     await ensureMonitoringSchema();
     await ensurePasswordResetSchema();
     await ensureUserPreferencesSchema();
+    await ensureMobileDeviceTokenSchema();
     await listen(env.port);
 
     if (env.monitoring.enabled) {

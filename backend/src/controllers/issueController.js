@@ -1,5 +1,8 @@
 const { pool } = require("../config/db");
-const { sendNotification } = require("../utils/notificationService");
+const {
+  notifyCitizenComplaintStatus,
+  sendNotification,
+} = require("../utils/notificationService");
 const { success, failure } = require("../utils/response");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
 const { ROOM_ADMINS } = require("../utils/socketRooms");
@@ -264,6 +267,13 @@ exports.updateStatus = async (req, res) => {
 
     const io = req.app.get("io");
     io.to(ROOM_ADMINS).emit("status_updated", enrichedResult.rows[0]);
+
+    await notifyCitizenComplaintStatus({
+      citizenUserId: enrichedResult.rows[0].reporter_user_id,
+      complaintId: id,
+      status,
+      title: enrichedResult.rows[0].title,
+    });
 
     sendNotification(`Issue status updated to ${status}`);
 

@@ -1,6 +1,7 @@
 const KEYS = {
   ACTIVE_TAB: "citizenPortal.activeTab",
   RECENT_REFS: "citizenPortal.recentComplaintRefs",
+  RECENT_DETAILS: "citizenPortal.recentComplaintDetails",
   LAST_TRACKED_ID: "citizenPortal.lastTrackedComplaintId",
 };
 
@@ -91,6 +92,44 @@ export function addRecentComplaintRef(complaintId) {
   writeJson(KEYS.RECENT_REFS, nextRefs);
 }
 
+export function getRecentComplaintDetails() {
+  const storedDetails = readJson(KEYS.RECENT_DETAILS, {});
+  if (!storedDetails || typeof storedDetails !== "object" || Array.isArray(storedDetails)) {
+    return {};
+  }
+
+  return storedDetails;
+}
+
+export function rememberComplaintDetail(complaint) {
+  const complaintId = String(complaint?.id || "").trim();
+  if (!complaintId) {
+    return;
+  }
+
+  const currentDetails = getRecentComplaintDetails();
+  const nextDetails = {
+    ...currentDetails,
+    [complaintId]: {
+      id: complaintId,
+      title: complaint.title || "",
+      status: complaint.status || "",
+      submitted_at: complaint.submitted_at || complaint.created_at || "",
+      department_name: complaint.department_name || "",
+      complaint_type: complaint.complaint_type || complaint.issue_type_name || "",
+    },
+  };
+
+  const allowedRefs = new Set(getRecentComplaintRefs());
+  Object.keys(nextDetails).forEach((key) => {
+    if (!allowedRefs.has(key) && key !== complaintId) {
+      delete nextDetails[key];
+    }
+  });
+
+  writeJson(KEYS.RECENT_DETAILS, nextDetails);
+}
+
 export function removeRecentComplaintRef(complaintId) {
   const normalizedId = String(complaintId || "").trim();
   if (!normalizedId) {
@@ -99,6 +138,10 @@ export function removeRecentComplaintRef(complaintId) {
 
   const nextRefs = getRecentComplaintRefs().filter((value) => value !== normalizedId);
   writeJson(KEYS.RECENT_REFS, nextRefs);
+
+  const details = getRecentComplaintDetails();
+  delete details[normalizedId];
+  writeJson(KEYS.RECENT_DETAILS, details);
 }
 
 export function getLastTrackedComplaintId() {
@@ -134,6 +177,15 @@ export function rememberTrackedComplaint(complaintId) {
 
   addRecentComplaintRef(normalizedId);
   setLastTrackedComplaintId(normalizedId);
+}
+
+export function rememberTrackedComplaintDetail(complaint) {
+  if (!complaint?.id) {
+    return;
+  }
+
+  rememberTrackedComplaint(complaint.id);
+  rememberComplaintDetail(complaint);
 }
 
 export function clearCitizenPortalState() {

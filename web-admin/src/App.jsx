@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "./api/api";
+import { connectAdminSocket, disconnectAdminSocket, syncSocketAuth } from "./api/socket";
 import Login from "./pages/Login";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
@@ -11,6 +12,20 @@ import { clearAuth, getRole, getToken } from "./utils/auth";
 function App() {
   const [sessionReady, setSessionReady] = useState(false);
   const [role, setRole] = useState("");
+
+  useEffect(() => {
+    if (!["SYSTEM_ADMIN", "DEPT_ADMIN"].includes(role)) {
+      disconnectAdminSocket();
+      return undefined;
+    }
+
+    syncSocketAuth();
+    connectAdminSocket();
+
+    return () => {
+      disconnectAdminSocket();
+    };
+  }, [role]);
 
   useEffect(() => {
     let active = true;
@@ -71,12 +86,14 @@ function App() {
 
   const handleLoggedIn = (nextLoggedIn) => {
     if (!nextLoggedIn) {
+      disconnectAdminSocket();
       clearAuth();
       setRole("");
       setSessionReady(true);
       return;
     }
 
+    syncSocketAuth();
     setRole(getRole() || "");
     setSessionReady(true);
   };
@@ -104,7 +121,10 @@ function App() {
         {(menu) => {
           if (menu === "workers") return <Workers />;
           if (menu === "reports") return <DepartmentReports />;
-          return <Dashboard />;
+          if (menu === "queue") return <Dashboard focus="queue" />;
+          if (menu === "map") return <Dashboard focus="map" />;
+          if (menu === "sla") return <Dashboard focus="sla" />;
+          return <Dashboard focus="overview" />;
         }}
       </Layout>
     );

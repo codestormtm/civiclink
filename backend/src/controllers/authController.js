@@ -13,9 +13,9 @@ const { ensureFirebaseAuthSchema } = require("../services/firebaseAuthSchemaServ
 const { ensurePasswordResetSchema } = require("../services/passwordResetService");
 const { ensureUserPreferencesSchema } = require("../services/userPreferencesSchemaService");
 const { success, failure } = require("../utils/response");
+const { buildStoredObjectReference } = require("../utils/attachmentStorage");
 
 const JWT_SECRET = env.jwt.secret;
-const MINIO_URL = process.env.MINIO_URL || "http://localhost:9000";
 const ADMIN_PORTAL_ROLES = [ROLES.SYSTEM_ADMIN, ROLES.DEPT_ADMIN];
 const WORKER_PORTAL_ROLES = [ROLES.WORKER];
 const INVALID_LOGIN_MESSAGE = "Invalid email or password";
@@ -621,7 +621,7 @@ exports.createDeptAdminPasswordResetRequest = async (req, res) => {
       }
     );
 
-    const requestLetterUrl = `${MINIO_URL}/${BUCKET}/${fileName}`;
+    const requestLetterUrl = buildStoredObjectReference(fileName);
 
     const insertResult = await client.query(
       `INSERT INTO password_reset_requests (

@@ -34,6 +34,13 @@ router.get(
   controller.getPasswordResetRequest
 );
 
+router.get(
+  "/password-reset-requests/:id/request-letter",
+  authMiddleware,
+  roleMiddleware(["SYSTEM_ADMIN"]),
+  controller.viewPasswordResetRequestLetter
+);
+
 router.patch(
   "/password-reset-requests/:id/view",
   authMiddleware,

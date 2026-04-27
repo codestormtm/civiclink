@@ -19,6 +19,8 @@ import {
   setPreferredLanguage,
 } from "./utils/auth";
 import { applyLanguage, getStoredLanguage, setStoredLanguage } from "./utils/language";
+import { postWorkerMobileLogout, postWorkerMobileSession } from "./utils/mobileBridge";
+import { flushWorkerQueue, getWorkerQueueSnapshot } from "./utils/offlineQueue";
 
 function buildStoredUser() {
   return {
@@ -41,14 +43,23 @@ function resolveTaskId(payload) {
   return payload?.assignment_id || payload?.id || null;
 }
 
+function getInitialTaskIdFromPath() {
+  const match = window.location.pathname.match(/^\/task\/([^/]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 export default function App() {
   const [bootState, setBootState] = useState("booting");
   const [user, setUser] = useState(() => buildStoredUser());
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [selectedTaskId, setSelectedTaskId] = useState(() => getInitialTaskIdFromPath());
   const [activeView, setActiveView] = useState("dashboard");
   const [language, setLanguage] = useState(() => getPreferredLanguage() || getStoredLanguage());
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
   const [toast, setToast] = useState(null);
+  const [syncState, setSyncState] = useState(() => ({
+    ...getWorkerQueueSnapshot(),
+    syncing: false,
+  }));
 
   const pushToast = useCallback(({ title, text, type = "info", taskId = null }) => {
     setToast({
@@ -101,6 +112,7 @@ export default function App() {
             setStoredLanguage(nextLanguage);
             setLanguage(nextLanguage);
           }
+          postWorkerMobileSession({ preferred_language: nextLanguage });
           setBootState(nextUser.preferred_language ? "authed" : "needs_language");
         }
       } catch {
@@ -122,6 +134,51 @@ export default function App() {
   useEffect(() => {
     applyLanguage(language);
   }, [language]);
+
+  const refreshSyncState = useCallback((extra = {}) => {
+    setSyncState({
+      ...getWorkerQueueSnapshot(),
+      ...extra,
+    });
+  }, []);
+
+  const flushQueuedWork = useCallback(async () => {
+    if (bootState !== "authed") {
+      refreshSyncState();
+      return;
+    }
+
+    refreshSyncState({ syncing: true });
+    const snapshot = await flushWorkerQueue();
+    setSyncState({ ...snapshot, syncing: false });
+  }, [bootState, refreshSyncState]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      void flushQueuedWork();
+    };
+    const handleOffline = () => refreshSyncState();
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [flushQueuedWork, refreshSyncState]);
+
+  useEffect(() => {
+    if (bootState === "authed") {
+      const timeoutId = window.setTimeout(() => {
+        void flushQueuedWork();
+      }, 0);
+
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    return undefined;
+  }, [bootState, flushQueuedWork]);
 
   useEffect(() => {
     if (!toast) {
@@ -203,6 +260,7 @@ export default function App() {
     if (sessionPayload?.preferred_language) {
       setPreferredLanguage(sessionPayload.preferred_language);
       applySelectedLanguage(sessionPayload.preferred_language);
+      postWorkerMobileSession({ preferred_language: sessionPayload.preferred_language });
       setBootState("authed");
     } else {
       setBootState("needs_language");
@@ -212,6 +270,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    postWorkerMobileLogout();
     disconnectWorkerSocket();
     clearAuth();
     setSelectedTaskId(null);
@@ -239,6 +298,7 @@ export default function App() {
       ...updatedUser,
       preferred_language: updatedUser?.preferred_language || nextLanguage,
     }));
+    postWorkerMobileSession({ preferred_language: updatedUser?.preferred_language || nextLanguage });
     setBootState("authed");
     setActiveView("dashboard");
   }, [applySelectedLanguage, user.department_name, user.name, user.role]);
@@ -342,6 +402,9 @@ export default function App() {
             onOpenSettings={() => setActiveView("settings")}
             notificationPermission={notificationPermission}
             onEnableNotifications={handleEnableNotifications}
+            syncState={syncState}
+            onSyncStateChange={refreshSyncState}
+            onFlushQueue={flushQueuedWork}
           />
           <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
         </>
@@ -356,6 +419,8 @@ export default function App() {
             onOpenSettings={() => setActiveView("settings")}
             notificationPermission={notificationPermission}
             onEnableNotifications={handleEnableNotifications}
+            syncState={syncState}
+            onFlushQueue={flushQueuedWork}
           />
           <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
         </>

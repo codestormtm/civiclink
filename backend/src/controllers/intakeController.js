@@ -5,6 +5,8 @@ const {
   getAvailableDepartmentsAndTypes,
   isAiConfigured,
 } = require("../services/ai/intakeService");
+const { logComplaintStatusChange } = require("../utils/complaintHistory");
+const { ROOM_ADMINS } = require("../utils/socketRooms");
 const logger = require("../utils/logger");
 const { failure } = require("../utils/response");
 
@@ -182,7 +184,7 @@ exports.submitSession = async (req, res) => {
          (department_id, issue_type_id, reporter_user_id, title, description,
           address_text, latitude, longitude, location_source, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'SUBMITTED')
-       RETURNING id, title, status, submitted_at`,
+       RETURNING *`,
       [
         finalDraft.department_id,
         finalDraft.issue_type_id,
@@ -196,11 +198,71 @@ exports.submitSession = async (req, res) => {
       ]
     );
 
+    await logComplaintStatusChange({
+      complaintId: complaint.rows[0].id,
+      oldStatus: null,
+      newStatus: "SUBMITTED",
+      changedBy: citizenUserId,
+      note: "Complaint submitted by citizen through AI intake",
+    });
+
+    const enrichedComplaint = await pool.query(
+      `SELECT c.id,
+              c.department_id,
+              c.issue_type_id,
+              c.reporter_user_id,
+              c.title,
+              c.description,
+              c.latitude,
+              c.longitude,
+              c.address_text,
+              c.location_source,
+              c.status,
+              c.priority_level,
+              c.sla_due_at,
+              CASE
+                WHEN c.sla_due_at < NOW()
+                  AND c.status NOT IN ('RESOLVED','CLOSED','REJECTED_WRONG_DEPARTMENT')
+                THEN true ELSE false
+              END AS sla_breached,
+              c.rejection_reason,
+              c.submitted_at,
+              c.resolved_at,
+              c.created_at,
+              c.updated_at,
+              d.name AS department_name,
+              d.code AS department_code,
+              dit.name AS issue_type_name,
+              reporter.name AS reporter_name,
+              latest_assignment.worker_user_id AS assigned_worker_id,
+              assignee.name AS assigned_worker_name,
+              latest_assignment.status AS assignment_status
+       FROM complaints c
+       JOIN departments d ON d.id = c.department_id
+       JOIN department_issue_types dit ON dit.id = c.issue_type_id
+       JOIN users reporter ON reporter.id = c.reporter_user_id
+       LEFT JOIN LATERAL (
+         SELECT ca.worker_user_id, ca.status, ca.assigned_at
+         FROM complaint_assignments ca
+         WHERE ca.complaint_id = c.id
+         ORDER BY ca.assigned_at DESC
+         LIMIT 1
+       ) latest_assignment ON TRUE
+       LEFT JOIN users assignee ON assignee.id = latest_assignment.worker_user_id
+       WHERE c.id = $1`,
+      [complaint.rows[0].id]
+    );
+
     await pool.query(
       `UPDATE complaint_intake_sessions SET status = 'SUBMITTED', updated_at = NOW()
        WHERE session_token = $1`,
       [sessionToken]
     );
+
+    const io = req.app.get("io");
+    if (io && enrichedComplaint.rows[0]) {
+      io.to(ROOM_ADMINS).emit("new_issue", enrichedComplaint.rows[0]);
+    }
 
     res.json({ success: true, data: complaint.rows[0] });
   } catch (err) {

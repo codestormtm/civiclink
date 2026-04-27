@@ -14,6 +14,7 @@ const publicRoutes = require("./routes/publicRoutes");
 const workerAssignmentRoutes = require("./routes/workerAssignmentRoutes");
 const intakeRoutes = require("./routes/intakeRoutes");
 const deptAdminRoutes = require("./routes/deptAdminRoutes");
+const mobileRoutes = require("./routes/mobileRoutes");
 
 const requestLogger = require("./middleware/requestLogger");
 const notFound = require("./middleware/notFoundMiddleware");
@@ -26,6 +27,8 @@ const { checkStorageHealth } = require("./services/monitoringService");
 const { resolveCorsOrigin } = require("./utils/originSecurity");
 
 const app = express();
+
+app.set("trust proxy", true);
 
 const corsOptions = {
   origin: resolveCorsOrigin,
@@ -49,6 +52,7 @@ app.use("/api/public", publicRoutes);
 app.use("/api/worker", workerAssignmentRoutes);
 app.use("/api/intake", intakeRoutes);
 app.use("/api/dept-admin", deptAdminRoutes);
+app.use("/api/mobile", mobileRoutes);
 
 app.get("/", (_req, res) => res.send("CivicLink API Running"));
 

@@ -8,6 +8,7 @@ The project is organized as one Node.js API plus three separate React portals:
 - `web-admin`: system admin and department admin portal for departments, issue types, complaint queues, worker management, reports, password-reset requests, and system monitoring.
 - `web-worker`: worker portal for assigned tasks, status updates, evidence uploads, language preferences, and live task notifications.
 - `backend`: Express API, PostgreSQL access, MinIO attachment storage, Socket.IO realtime events, role-based authorization, Firebase session exchange, and AI-guided intake.
+- `mobile/citizen` and `mobile/worker`: Android-first Flutter WebView shells for LAN testing the citizen and worker portals with native Firebase Cloud Messaging registration.
 
 ## Project Purpose
 
@@ -111,6 +112,26 @@ civiclink/
 | Redis through Docker | `localhost:6379` |
 
 The Docker backend container listens on port `5001` internally and is mapped to host port `5002` by default.
+
+For Android LAN testing, use the active Wi-Fi IPv4 address from `ipconfig` instead of `localhost`. In this workspace the detected Wi-Fi address was `192.168.1.2`, so the Flutter apps default to:
+
+| Mobile shell | Default LAN portal |
+| --- | --- |
+| Citizen Android | `http://192.168.1.2:5173` |
+| Worker Android | `http://192.168.1.2:5175` |
+| Backend API | `http://192.168.1.2:5002/api` |
+
+Run the apps with explicit overrides if the LAN IP changes:
+
+```powershell
+cd mobile\citizen
+flutter run --dart-define=CIVICLINK_PORTAL_URL=http://192.168.1.2:5173 --dart-define=CIVICLINK_API_BASE_URL=http://192.168.1.2:5002/api
+
+cd ..\worker
+flutter run --dart-define=CIVICLINK_PORTAL_URL=http://192.168.1.2:5175 --dart-define=CIVICLINK_API_BASE_URL=http://192.168.1.2:5002/api
+```
+
+Create Firebase Android apps for `lk.civiclink.citizen` and `lk.civiclink.worker`, then place each matching `google-services.json` in the corresponding `android/app/` directory before testing native push notifications.
 
 ## Prerequisites
 

@@ -12,6 +12,7 @@ import socket from "../api/socket";
 import { useWorkerI18n } from "../i18n";
 import StatusBadge from "../components/StatusBadge";
 import WorkerHeader from "../components/WorkerHeader";
+import OfflineSyncStatus from "../components/OfflineSyncStatus";
 
 function countByStatus(tasks, status) {
   return tasks.filter((task) => task.complaint_status === status).length;
@@ -30,6 +31,8 @@ export default function WorkerDashboard({
   onOpenSettings,
   notificationPermission,
   onEnableNotifications,
+  syncState,
+  onFlushQueue,
 }) {
   const { t, formatDateTime } = useWorkerI18n();
   const [tasks, setTasks] = useState([]);
@@ -83,6 +86,8 @@ export default function WorkerDashboard({
       />
 
       <main className="worker-wrap">
+        <OfflineSyncStatus syncState={syncState} onFlushQueue={onFlushQueue} />
+
         <section className="worker-hero-card">
           <div className="worker-hero-copy">
             <div className="worker-kicker">{t("dashboard.kicker")}</div>
@@ -164,6 +169,13 @@ export default function WorkerDashboard({
                     <StatusBadge status={task.complaint_status} />
                   </div>
 
+                  <div className="worker-task-signal-row">
+                    <span className="worker-priority-chip">
+                      {t("dashboard.priority")}: {task.priority_level || t("dashboard.priorityFallback")}
+                    </span>
+                    <span className="worker-evidence-chip">{t("dashboard.evidenceNeeded")}</span>
+                  </div>
+
                   <div className="worker-meta-grid">
                     <div>
                       <span className="worker-meta-label">{t("dashboard.meta.department")}</span>
@@ -199,6 +211,10 @@ export default function WorkerDashboard({
                         <span>{task.address_text}</span>
                       </div>
                     ) : null}
+                    <div className="worker-inline-tip">
+                      <CircleCheckBig size={16} aria-hidden="true" />
+                      <span>{t("dashboard.evidenceCopy")}</span>
+                    </div>
                   </div>
                 </article>
               ))}

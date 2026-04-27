@@ -50,8 +50,8 @@ const DEFAULT_FILTERS = {
 
 const SRI_LANKA = [7.8731, 80.7718];
 
-export default function Dashboard() {
-  const [tab, setTab] = useState("complaints");
+export default function Dashboard({ focus = "overview" }) {
+  const [tab, setTab] = useState(() => (focus === "map" ? "map" : "complaints"));
   const [issues, setIssues] = useState([]);
   const [summary, setSummary] = useState(null);
   const [workers, setWorkers] = useState([]);
@@ -117,10 +117,28 @@ export default function Dashboard() {
     }
   };
 
-  const handleFiltersChange = (newFilters) => {
+  const handleFiltersChange = useCallback((newFilters) => {
     setFilters(newFilters);
     fetchIssues(newFilters);
-  };
+  }, [fetchIssues]);
+
+  useEffect(() => {
+    if (focus === "map") {
+      setTab("map");
+      return;
+    }
+
+    setTab("complaints");
+
+    if (focus === "sla") {
+      handleFiltersChange({ ...DEFAULT_FILTERS, sla_breached: true });
+      return;
+    }
+
+    if (focus === "queue") {
+      handleFiltersChange(DEFAULT_FILTERS);
+    }
+  }, [focus, handleFiltersChange]);
 
   const assignWorker = async (complaintId, workerId) => {
     try {
@@ -208,6 +226,22 @@ export default function Dashboard() {
     <div>
       <div className="container">
         {error && <div className="alert alert-error">{error}</div>}
+
+        <div className="dept-workspace-heading">
+          <div>
+            <p className="section-title">Department Workspace</p>
+            <h2>
+              {focus === "map"
+                ? "Active Issue Map"
+                : focus === "sla"
+                ? "SLA Alert View"
+                : focus === "queue"
+                ? "Incoming Issue Queue"
+                : "Dashboard Overview"}
+            </h2>
+          </div>
+          <span className="dept-scope-pill">Department data only</span>
+        </div>
 
         {/* Stats */}
         <div className="stats">
