@@ -1,5 +1,7 @@
 const { pool } = require("../config/db");
 const {
+  buildRealtimeNotification,
+  emitRealtimeNotification,
   notifyCitizenComplaintStatus,
   notifyWorkerAssignment,
   sendNotification,
@@ -113,6 +115,62 @@ exports.assignTask = async (req, res) => {
     const assignmentPayload = { ...result.rows[0], worker_name: worker.name };
     io.to(ROOM_ADMINS).emit("task_assigned", assignmentPayload);
     io.to(userRoom(worker_user_id)).emit("task_assigned", assignmentPayload);
+
+    emitRealtimeNotification(
+      io,
+      [ROOM_ADMINS],
+      buildRealtimeNotification({
+        channel: "admin_task_assigned",
+        title: "Task assigned",
+        body: complaint.title
+          ? `${complaint.title} was assigned to ${worker.name}.`
+          : `${worker.name} received a new complaint assignment.`,
+        urlPath: "/",
+        entityType: "assignment",
+        entityId: result.rows[0].id,
+        data: {
+          complaint_id,
+          assignment_id: result.rows[0].id,
+          worker_user_id,
+        },
+      }),
+    );
+    emitRealtimeNotification(
+      io,
+      [userRoom(worker_user_id)],
+      buildRealtimeNotification({
+        channel: "worker_task_assigned",
+        title: "New task assigned",
+        body: complaint.title
+          ? `Assigned: ${complaint.title}`
+          : "A new complaint has been assigned to you.",
+        urlPath: result.rows[0].id ? `/task/${result.rows[0].id}` : "/",
+        entityType: "assignment",
+        entityId: result.rows[0].id,
+        data: {
+          complaint_id,
+          assignment_id: result.rows[0].id,
+        },
+      }),
+    );
+    emitRealtimeNotification(
+      io,
+      [userRoom(complaint.reporter_user_id)],
+      buildRealtimeNotification({
+        channel: "citizen_complaint_status",
+        title: "Complaint status updated",
+        body: complaint.title
+          ? `${complaint.title}: ASSIGNED`
+          : "Your complaint is now ASSIGNED.",
+        urlPath: complaint_id ? `/track/${complaint_id}` : "/",
+        entityType: "complaint",
+        entityId: complaint_id,
+        data: {
+          complaint_id,
+          status: "ASSIGNED",
+        },
+      }),
+    );
 
     await notifyWorkerAssignment({
       workerUserId: worker_user_id,
@@ -236,6 +294,44 @@ exports.updateTaskStatus = async (req, res) => {
     const io = req.app.get("io");
     io.to(ROOM_ADMINS).emit("status_updated", result.rows[0]);
     io.to(userRoom(req.user.id)).emit("status_updated", result.rows[0]);
+
+    emitRealtimeNotification(
+      io,
+      [ROOM_ADMINS],
+      buildRealtimeNotification({
+        channel: "admin_complaint_status",
+        title: "Complaint status updated",
+        body: assignmentCheck.rows[0].title
+          ? `${assignmentCheck.rows[0].title}: ${complaintStatus}`
+          : `A complaint changed to ${complaintStatus}.`,
+        urlPath: "/",
+        entityType: "complaint",
+        entityId: result.rows[0].complaint_id,
+        data: {
+          complaint_id: result.rows[0].complaint_id,
+          assignment_id: id,
+          status: complaintStatus,
+        },
+      }),
+    );
+    emitRealtimeNotification(
+      io,
+      [userRoom(assignmentCheck.rows[0].reporter_user_id)],
+      buildRealtimeNotification({
+        channel: "citizen_complaint_status",
+        title: "Complaint status updated",
+        body: assignmentCheck.rows[0].title
+          ? `${assignmentCheck.rows[0].title}: ${complaintStatus}`
+          : `Your complaint is now ${complaintStatus}.`,
+        urlPath: result.rows[0].complaint_id ? `/track/${result.rows[0].complaint_id}` : "/",
+        entityType: "complaint",
+        entityId: result.rows[0].complaint_id,
+        data: {
+          complaint_id: result.rows[0].complaint_id,
+          status: complaintStatus,
+        },
+      }),
+    );
 
     await notifyCitizenComplaintStatus({
       citizenUserId: assignmentCheck.rows[0].reporter_user_id,

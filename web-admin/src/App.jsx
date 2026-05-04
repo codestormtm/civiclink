@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "./api/api";
 import { connectAdminSocket, disconnectAdminSocket, syncSocketAuth } from "./api/socket";
+import socket from "./api/socket";
 import Login from "./pages/Login";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
@@ -9,9 +10,18 @@ import DepartmentReports from "./pages/DepartmentReports";
 import SystemAdmin from "./pages/SystemAdmin";
 import { clearAuth, getRole, getToken } from "./utils/auth";
 
+function getBrowserNotificationPermission() {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return "unsupported";
+  }
+
+  return window.Notification.permission;
+}
+
 function App() {
   const [sessionReady, setSessionReady] = useState(false);
   const [role, setRole] = useState("");
+  const [notificationPermission, setNotificationPermission] = useState(() => getBrowserNotificationPermission());
 
   useEffect(() => {
     if (!["SYSTEM_ADMIN", "DEPT_ADMIN"].includes(role)) {
@@ -26,6 +36,56 @@ function App() {
       disconnectAdminSocket();
     };
   }, [role]);
+
+  useEffect(() => {
+    if (!["SYSTEM_ADMIN", "DEPT_ADMIN"].includes(role)) {
+      return undefined;
+    }
+
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      return undefined;
+    }
+
+    if (window.Notification.permission === "default") {
+      void window.Notification.requestPermission().then((permission) => {
+        setNotificationPermission(permission);
+      });
+    }
+
+    return undefined;
+  }, [role]);
+
+  useEffect(() => {
+    if (!["SYSTEM_ADMIN", "DEPT_ADMIN"].includes(role)) {
+      return undefined;
+    }
+
+    const handleRealtimeNotification = (payload) => {
+      if (
+        typeof window === "undefined"
+        || !("Notification" in window)
+        || notificationPermission !== "granted"
+      ) {
+        return;
+      }
+
+      const notification = new window.Notification(payload?.title || "CivicLink", {
+        body: payload?.body || "You have a CivicLink update.",
+        tag: payload?.channel || "civiclink-admin",
+      });
+
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    };
+
+    socket.on("notification", handleRealtimeNotification);
+
+    return () => {
+      socket.off("notification", handleRealtimeNotification);
+    };
+  }, [notificationPermission, role]);
 
   useEffect(() => {
     let active = true;

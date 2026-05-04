@@ -1,11 +1,13 @@
 const { pool } = require("../config/db");
 const {
+  buildRealtimeNotification,
+  emitRealtimeNotification,
   notifyCitizenComplaintStatus,
   sendNotification,
 } = require("../utils/notificationService");
 const { success, failure } = require("../utils/response");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
-const { ROOM_ADMINS } = require("../utils/socketRooms");
+const { ROOM_ADMINS, userRoom } = require("../utils/socketRooms");
 
 const COMPLAINT_STATUSES = new Set([
   "SUBMITTED",
@@ -138,6 +140,24 @@ exports.createIssue = async (req, res) => {
 
     const io = req.app.get("io");
     io.to(ROOM_ADMINS).emit("new_issue", result.rows[0]);
+    emitRealtimeNotification(
+      io,
+      [ROOM_ADMINS],
+      buildRealtimeNotification({
+        channel: "admin_new_issue",
+        title: "New complaint submitted",
+        body: result.rows[0]?.title
+          ? `${result.rows[0].title} was submitted.`
+          : "A new complaint was submitted.",
+        urlPath: "/",
+        entityType: "complaint",
+        entityId: result.rows[0]?.id,
+        data: {
+          complaint_id: result.rows[0]?.id,
+          department_id,
+        },
+      }),
+    );
 
     sendNotification("New issue created");
 
@@ -267,6 +287,42 @@ exports.updateStatus = async (req, res) => {
 
     const io = req.app.get("io");
     io.to(ROOM_ADMINS).emit("status_updated", enrichedResult.rows[0]);
+    emitRealtimeNotification(
+      io,
+      [ROOM_ADMINS],
+      buildRealtimeNotification({
+        channel: "admin_complaint_status",
+        title: "Complaint status updated",
+        body: enrichedResult.rows[0]?.title
+          ? `${enrichedResult.rows[0].title}: ${status}`
+          : `A complaint changed to ${status}.`,
+        urlPath: "/",
+        entityType: "complaint",
+        entityId: id,
+        data: {
+          complaint_id: id,
+          status,
+        },
+      }),
+    );
+    emitRealtimeNotification(
+      io,
+      [enrichedResult.rows[0]?.reporter_user_id ? userRoom(enrichedResult.rows[0].reporter_user_id) : ""],
+      buildRealtimeNotification({
+        channel: "citizen_complaint_status",
+        title: "Complaint status updated",
+        body: enrichedResult.rows[0]?.title
+          ? `${enrichedResult.rows[0].title}: ${status}`
+          : `Your complaint is now ${status}.`,
+        urlPath: id ? `/track/${id}` : "/",
+        entityType: "complaint",
+        entityId: id,
+        data: {
+          complaint_id: id,
+          status,
+        },
+      }),
+    );
 
     await notifyCitizenComplaintStatus({
       citizenUserId: enrichedResult.rows[0].reporter_user_id,

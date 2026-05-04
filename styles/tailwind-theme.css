@@ -1,0 +1,162 @@
+@theme {
+  --font-sans: "Manrope", "Segoe UI", Arial, sans-serif;
+  --font-admin: "Inter", Arial, sans-serif;
+  --font-sinhala: "Noto Sans Sinhala", "Nirmala UI", sans-serif;
+  --font-tamil: "Noto Sans Tamil", "Latha", sans-serif;
+
+  --color-sl-green-900: #0c5b55;
+  --color-sl-green-800: #0f6c65;
+  --color-sl-maroon-900: #8a1538;
+  --color-sl-maroon-800: #a11b44;
+  --color-sl-gold-500: #f6be32;
+  --color-sl-gold-400: #ffd15b;
+  --color-sl-saffron-600: #d97706;
+  --color-sl-saffron-500: #f08a00;
+  --color-sl-ink-900: #1f1720;
+  --color-sl-ink-700: #4f3f4f;
+  --color-sl-muted-500: #756877;
+  --color-sl-line: #ddcfbf;
+  --color-sl-surface: #fffaf1;
+  --color-sl-surface-2: #fff4dd;
+  --color-sl-white: #ffffff;
+  --color-sl-danger-bg: #fff1ef;
+  --color-sl-danger-border: #d36161;
+  --color-sl-danger-text: #7f1d1d;
+  --color-sl-success-bg: #eff8ef;
+  --color-sl-success-border: #2f7b57;
+  --color-sl-success-text: #14532d;
+  --color-sl-info-bg: #eff6ff;
+  --color-sl-info-border: #93c5fd;
+  --color-sl-info-text: #1d4ed8;
+
+  --shadow-sl-card: 0 10px 26px rgba(77, 34, 12, 0.12);
+  --shadow-sl-float: 0 24px 70px rgba(38, 19, 15, 0.24);
+
+  --radius-sl-card: 1rem;
+  --radius-sl-shell: 1.5rem;
+}
+
+:root {
+  --sl-motion-fast: 180ms;
+  --sl-motion-base: 280ms;
+  --sl-motion-slow: 420ms;
+  --sl-motion-bounce: 560ms;
+  --sl-motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --sl-motion-ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --sl-motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --sl-motion-distance: 18px;
+  --sl-green-900: var(--color-sl-green-900);
+  --sl-green-800: var(--color-sl-green-800);
+  --sl-maroon-900: var(--color-sl-maroon-900);
+  --sl-maroon-800: var(--color-sl-maroon-800);
+  --sl-gold-500: var(--color-sl-gold-500);
+  --sl-gold-400: var(--color-sl-gold-400);
+  --sl-saffron-600: var(--color-sl-saffron-600);
+  --sl-saffron-500: var(--color-sl-saffron-500);
+  --sl-ink-900: var(--color-sl-ink-900);
+  --sl-ink-700: var(--color-sl-ink-700);
+  --sl-muted-500: var(--color-sl-muted-500);
+  --sl-line: var(--color-sl-line);
+  --sl-surface: var(--color-sl-surface);
+  --sl-surface-2: var(--color-sl-surface-2);
+  --sl-white: var(--color-sl-white);
+  --sl-danger-bg: var(--color-sl-danger-bg);
+  --sl-danger-border: var(--color-sl-danger-border);
+  --sl-danger-text: var(--color-sl-danger-text);
+  --sl-success-bg: var(--color-sl-success-bg);
+  --sl-success-border: var(--color-sl-success-border);
+  --sl-success-text: var(--color-sl-success-text);
+  --sl-info-bg: var(--color-sl-info-bg);
+  --sl-info-border: var(--color-sl-info-border);
+  --sl-info-text: var(--color-sl-info-text);
+  --sl-shadow: var(--shadow-sl-card);
+  --sl-shadow-lg: var(--shadow-sl-float);
+}
+
+@keyframes sl-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sl-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--sl-motion-distance), 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes sl-fade-down {
+  from {
+    opacity: 0;
+    transform: translate3d(0, calc(var(--sl-motion-distance) * -1), 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes sl-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sl-pop-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.96);
+  }
+
+  65% {
+    opacity: 1;
+    transform: translate3d(0, -2px, 0) scale(1.01);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes sl-soft-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.015);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

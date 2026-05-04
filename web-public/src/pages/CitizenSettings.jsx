@@ -9,6 +9,8 @@ export default function CitizenSettings({
   saving,
   error,
   success,
+  notificationPermission,
+  onEnableNotifications,
 }) {
   const { t } = useCitizenI18n();
   const selectedLanguageLabelByCode = {
@@ -16,6 +18,13 @@ export default function CitizenSettings({
     si: t("language.sinhala"),
     ta: t("language.tamil"),
   };
+  const notificationLabel = notificationPermission === "granted"
+    ? t("settings.notifications.enabled")
+    : notificationPermission === "denied"
+    ? t("settings.notifications.blocked")
+    : notificationPermission === "unsupported"
+    ? t("settings.notifications.unsupported")
+    : t("settings.notifications.enable");
 
   return (
     <div className="container citizen-settings-page">
@@ -44,6 +53,20 @@ export default function CitizenSettings({
         </div>
 
         <LanguageSelector value={language} onChange={onLanguageChange} disabled={saving} />
+
+        <div className="citizen-settings-current">
+          <span className="citizen-settings-current-label">{t("settings.notifications.label")}</span>
+          <strong>{notificationLabel}</strong>
+        </div>
+
+        <button
+          type="button"
+          className="citizen-action-btn citizen-action-btn-full citizen-settings-save-btn"
+          onClick={onEnableNotifications}
+          disabled={saving}
+        >
+          {t("settings.notifications.button")}
+        </button>
 
         <button
           type="button"

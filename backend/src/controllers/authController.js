@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const { pool } = require("../config/db");
 const env = require("../config/env");
 const {
+  isFirebaseAdminConfigured,
   isFirebaseAuthEnabled,
   verifyFirebaseIdToken,
 } = require("../config/firebaseAdmin");
@@ -12,6 +13,10 @@ const ROLES = require("../constants/roles");
 const { ensureFirebaseAuthSchema } = require("../services/firebaseAuthSchemaService");
 const { ensurePasswordResetSchema } = require("../services/passwordResetService");
 const { ensureUserPreferencesSchema } = require("../services/userPreferencesSchemaService");
+const {
+  buildRealtimeNotification,
+  emitRealtimeNotification,
+} = require("../utils/notificationService");
 const { success, failure } = require("../utils/response");
 const { buildStoredObjectReference } = require("../utils/attachmentStorage");
 
@@ -395,6 +400,10 @@ exports.createFirebaseSession = async (req, res) => {
     return failure(res, "Firebase citizen authentication is not configured.", 503);
   }
 
+  if (!isFirebaseAdminConfigured()) {
+    return failure(res, "Firebase Admin is not configured.", 503);
+  }
+
   try {
     await ensureFirebaseAuthSchema();
     await ensureUserPreferencesSchema();
@@ -406,7 +415,11 @@ exports.createFirebaseSession = async (req, res) => {
 
   try {
     decodedToken = await verifyFirebaseIdToken(String(idToken).trim());
-  } catch {
+  } catch (err) {
+    if (/Firebase Admin is not configured/i.test(err?.message || "")) {
+      return failure(res, "Firebase Admin is not configured.", 503);
+    }
+
     return failure(res, "Invalid Firebase token.", 401);
   }
 
@@ -653,6 +666,25 @@ exports.createDeptAdminPasswordResetRequest = async (req, res) => {
 
     if (io) {
       io.to("role:system_admins").emit("password_reset_request_created", createdRequest);
+      emitRealtimeNotification(
+        io,
+        ["role:system_admins"],
+        buildRealtimeNotification({
+          channel: "system_password_reset_request",
+          title: "Password reset request",
+          body: targetUser.department_name
+            ? `${targetUser.department_name} submitted a password reset request.`
+            : "A department admin password reset request was submitted.",
+          urlPath: "/",
+          severity: "info",
+          entityType: "password_reset_request",
+          entityId: createdRequest.id,
+          data: {
+            request_id: createdRequest.id,
+            department_id: createdRequest.department_id,
+          },
+        }),
+      );
     }
 
     return success(

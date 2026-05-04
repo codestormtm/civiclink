@@ -7,8 +7,12 @@ function isFirebaseAuthEnabled() {
   return Boolean(env.firebase.enabled);
 }
 
+function isFirebaseAdminConfigured() {
+  return Boolean(env.firebase.serviceAccount);
+}
+
 function getFirebaseAdminApp() {
-  if (!isFirebaseAuthEnabled()) {
+  if (!isFirebaseAuthEnabled() || !isFirebaseAdminConfigured()) {
     return null;
   }
 
@@ -53,6 +57,7 @@ async function verifyFirebaseIdToken(idToken) {
 module.exports = {
   getFirebaseAuth,
   getFirebaseMessaging,
+  isFirebaseAdminConfigured,
   isFirebaseAuthEnabled,
   verifyFirebaseIdToken,
 };

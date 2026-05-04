@@ -6,6 +6,10 @@ const env = require("../config/env");
 const { pool } = require("../config/db");
 const { minioClient, bucketName } = require("../config/minio");
 const logger = require("../utils/logger");
+const {
+  buildRealtimeNotification,
+  emitRealtimeNotification,
+} = require("../utils/notificationService");
 const { ROOM_SYSTEM_ADMINS } = require("../utils/socketRooms");
 
 const MONITOR_INTERVAL_MS = 60_000;
@@ -369,6 +373,23 @@ async function recordTargetCheck(target, check, io) {
 
   if (alertToEmit && io) {
     io.to(ROOM_SYSTEM_ADMINS).emit("system_alert", alertToEmit);
+    emitRealtimeNotification(
+      io,
+      [ROOM_SYSTEM_ADMINS],
+      buildRealtimeNotification({
+        channel: "system_alert",
+        title: alertToEmit.severity === "HIGH" ? "System alert" : "System recovery",
+        body: alertToEmit.message,
+        urlPath: "/",
+        severity: String(alertToEmit.severity || "INFO").toLowerCase(),
+        entityType: "monitor_alert",
+        entityId: alertToEmit.id,
+        data: {
+          target_key: alertToEmit.target_key,
+          incident_id: alertToEmit.incident_id,
+        },
+      }),
+    );
   }
 }
 

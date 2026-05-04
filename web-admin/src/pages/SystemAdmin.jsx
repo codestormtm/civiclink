@@ -7,6 +7,8 @@ const EMPTY_ADMIN_FORM = { name: "", email: "", password: "", department_id: "" 
 const EMPTY_EDIT_FORM = { name: "", code: "", contact_email: "", contact_phone: "", admin_password: "" };
 const EMPTY_LOG_FILTERS = { target_key: "", status: "", date_from: "", date_to: "" };
 const EMPTY_RESET_FORM = { new_password: "", confirm_password: "" };
+const DEFAULT_MONITORING_VISIBLE = 10;
+const MONITORING_FETCH_LIMIT = 250;
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -45,6 +47,9 @@ export default function SystemAdmin() {
   const [incidents, setIncidents] = useState([]);
   const [logs, setLogs] = useState([]);
   const [logFilters, setLogFilters] = useState(EMPTY_LOG_FILTERS);
+  const [visibleAlerts, setVisibleAlerts] = useState(DEFAULT_MONITORING_VISIBLE);
+  const [visibleIncidents, setVisibleIncidents] = useState(DEFAULT_MONITORING_VISIBLE);
+  const [visibleLogs, setVisibleLogs] = useState(DEFAULT_MONITORING_VISIBLE);
 
   const [passwordRequests, setPasswordRequests] = useState([]);
   const [unreadRequestCount, setUnreadRequestCount] = useState(0);
@@ -79,6 +84,14 @@ export default function SystemAdmin() {
     toastTimerRef.current = window.setTimeout(() => setToast(null), 4500);
   }, []);
 
+  const expandVisibleItems = useCallback((setter) => {
+    setter((current) => current + DEFAULT_MONITORING_VISIBLE);
+  }, []);
+
+  const collapseVisibleItems = useCallback((setter) => {
+    setter(DEFAULT_MONITORING_VISIBLE);
+  }, []);
+
   const fetchDepartments = useCallback(async () => {
     const res = await api.get("/departments");
     setDepartments(res.data.data || []);
@@ -88,7 +101,10 @@ export default function SystemAdmin() {
     setLoadingMonitoring(true);
 
     try {
-      const params = buildLogParams(nextFilters);
+      const logParams = {
+        ...buildLogParams(nextFilters),
+        limit: MONITORING_FETCH_LIMIT,
+      };
       const [
         summaryRes,
         departmentActivityRes,
@@ -100,9 +116,9 @@ export default function SystemAdmin() {
         api.get("/system-admin/monitoring/summary"),
         api.get("/system-admin/monitoring/department-activity"),
         api.get("/system-admin/monitoring/worker-activity"),
-        api.get("/system-admin/monitoring/alerts"),
-        api.get("/system-admin/monitoring/incidents"),
-        api.get("/system-admin/monitoring/logs", { params }),
+        api.get("/system-admin/monitoring/alerts", { params: { limit: MONITORING_FETCH_LIMIT } }),
+        api.get("/system-admin/monitoring/incidents", { params: { limit: MONITORING_FETCH_LIMIT } }),
+        api.get("/system-admin/monitoring/logs", { params: logParams }),
       ]);
 
       setSummary(summaryRes.data.data || []);
@@ -269,6 +285,7 @@ export default function SystemAdmin() {
   }
 
   async function applyLogFilters() {
+    setVisibleLogs(DEFAULT_MONITORING_VISIBLE);
     await fetchMonitoring(logFilters);
   }
 
@@ -365,6 +382,16 @@ export default function SystemAdmin() {
       </div>
     );
   }
+
+  const visibleAlertRows = alerts.slice(0, visibleAlerts);
+  const visibleIncidentRows = incidents.slice(0, visibleIncidents);
+  const visibleLogRows = logs.slice(0, visibleLogs);
+  const hasMoreAlerts = alerts.length > visibleAlertRows.length;
+  const hasMoreIncidents = incidents.length > visibleIncidentRows.length;
+  const hasMoreLogs = logs.length > visibleLogRows.length;
+  const canCollapseAlerts = alerts.length > DEFAULT_MONITORING_VISIBLE && visibleAlerts > DEFAULT_MONITORING_VISIBLE;
+  const canCollapseIncidents = incidents.length > DEFAULT_MONITORING_VISIBLE && visibleIncidents > DEFAULT_MONITORING_VISIBLE;
+  const canCollapseLogs = logs.length > DEFAULT_MONITORING_VISIBLE && visibleLogs > DEFAULT_MONITORING_VISIBLE;
 
   return (
     <div className="sa-page">
@@ -829,14 +856,16 @@ export default function SystemAdmin() {
                 <div className="sa-section" style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
                     <p className="section-title" style={{ marginBottom: 0 }}>Recent Alerts</p>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>{alerts.length} alerts</span>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>
+                      Showing {visibleAlertRows.length} of {alerts.length} alerts
+                    </span>
                   </div>
 
                   {alerts.length === 0 ? (
                     <p className="empty" style={{ padding: "28px 0" }}>No alerts yet.</p>
                   ) : (
                     <div style={{ display: "grid", gap: 10 }}>
-                      {alerts.map((alert) => {
+                      {visibleAlertRows.map((alert) => {
                         const tone = getSeverityColor(alert.severity);
                         return (
                           <div
@@ -857,6 +886,21 @@ export default function SystemAdmin() {
                           </div>
                         );
                       })}
+
+                      {(hasMoreAlerts || canCollapseAlerts) ? (
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 2, flexWrap: "wrap" }}>
+                          {canCollapseAlerts ? (
+                            <button className="topbar-logout" onClick={() => collapseVisibleItems(setVisibleAlerts)}>
+                              Show less
+                            </button>
+                          ) : null}
+                          {hasMoreAlerts ? (
+                            <button className="btn-primary" onClick={() => expandVisibleItems(setVisibleAlerts)}>
+                              Show more alerts
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -864,7 +908,9 @@ export default function SystemAdmin() {
                 <div className="sa-section" style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
                     <p className="section-title" style={{ marginBottom: 0 }}>Incident History</p>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>{incidents.length} records</span>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>
+                      Showing {visibleIncidentRows.length} of {incidents.length} records
+                    </span>
                   </div>
 
                   <div className="sa-table-wrap">
@@ -881,7 +927,7 @@ export default function SystemAdmin() {
                       <tbody>
                         {incidents.length === 0 ? (
                           <tr><td colSpan="5">No incidents yet.</td></tr>
-                        ) : incidents.map((incident) => (
+                        ) : visibleIncidentRows.map((incident) => (
                           <tr key={incident.id}>
                             <td>{incident.label || incident.target_key}</td>
                             <td>{incident.status}</td>
@@ -893,6 +939,21 @@ export default function SystemAdmin() {
                       </tbody>
                     </table>
                   </div>
+
+                  {(hasMoreIncidents || canCollapseIncidents) ? (
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                      {canCollapseIncidents ? (
+                        <button className="topbar-logout" onClick={() => collapseVisibleItems(setVisibleIncidents)}>
+                          Show less
+                        </button>
+                      ) : null}
+                      {hasMoreIncidents ? (
+                        <button className="btn-primary" onClick={() => expandVisibleItems(setVisibleIncidents)}>
+                          Show more incidents
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -900,7 +961,9 @@ export default function SystemAdmin() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                   <div>
                     <p className="section-title" style={{ marginBottom: 6 }}>System Check Logs</p>
-                    <div style={{ fontSize: 14, color: "#374151" }}>Filter and download uptime or downtime records for each system.</div>
+                    <div style={{ fontSize: 14, color: "#374151" }}>
+                      Filter and download uptime or downtime records for each system. Showing {visibleLogRows.length} of {logs.length} log entries.
+                    </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button className="btn-primary" onClick={applyLogFilters}>Apply Filters</button>
@@ -970,7 +1033,7 @@ export default function SystemAdmin() {
                     <tbody>
                       {logs.length === 0 ? (
                         <tr><td colSpan="6">No log records match the current filters.</td></tr>
-                      ) : logs.map((log) => (
+                      ) : visibleLogRows.map((log) => (
                         <tr key={log.id}>
                           <td>{log.label || log.target_key}</td>
                           <td>{log.status}</td>
@@ -983,6 +1046,21 @@ export default function SystemAdmin() {
                     </tbody>
                   </table>
                 </div>
+
+                {(hasMoreLogs || canCollapseLogs) ? (
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                    {canCollapseLogs ? (
+                      <button className="topbar-logout" onClick={() => collapseVisibleItems(setVisibleLogs)}>
+                        Show less
+                      </button>
+                    ) : null}
+                    {hasMoreLogs ? (
+                      <button className="btn-primary" onClick={() => expandVisibleItems(setVisibleLogs)}>
+                        Show more logs
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               <div className="sa-monitor-columns">

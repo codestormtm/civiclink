@@ -24,7 +24,11 @@ const {
   resolveAttachmentRole,
 } = require("../utils/attachmentStorage");
 const { getRequestOrigin } = require("../utils/requestOrigin");
-const { notifyCitizenComplaintStatus } = require("../utils/notificationService");
+const {
+  buildRealtimeNotification,
+  emitRealtimeNotification,
+  notifyCitizenComplaintStatus,
+} = require("../utils/notificationService");
 const { ROOM_ADMINS, userRoom } = require("../utils/socketRooms");
 
 // GET /api/worker/assignments
@@ -228,6 +232,43 @@ exports.updateMyAssignmentStatus = async (req, res) => {
       };
       io.to(ROOM_ADMINS).emit("status_updated", eventPayload);
       io.to(userRoom(workerUserId)).emit("status_updated", eventPayload);
+      emitRealtimeNotification(
+        io,
+        [ROOM_ADMINS],
+        buildRealtimeNotification({
+          channel: "admin_complaint_status",
+          title: "Complaint status updated",
+          body: assignment.title
+            ? `${assignment.title}: ${complaintStatus}`
+            : `A complaint changed to ${complaintStatus}.`,
+          urlPath: "/",
+          entityType: "complaint",
+          entityId: assignment.complaint_id,
+          data: {
+            complaint_id: assignment.complaint_id,
+            assignment_id: assignment.id,
+            status: complaintStatus,
+          },
+        }),
+      );
+      emitRealtimeNotification(
+        io,
+        [userRoom(assignment.reporter_user_id)],
+        buildRealtimeNotification({
+          channel: "citizen_complaint_status",
+          title: "Complaint status updated",
+          body: assignment.title
+            ? `${assignment.title}: ${complaintStatus}`
+            : `Your complaint is now ${complaintStatus}.`,
+          urlPath: assignment.complaint_id ? `/track/${assignment.complaint_id}` : "/",
+          entityType: "complaint",
+          entityId: assignment.complaint_id,
+          data: {
+            complaint_id: assignment.complaint_id,
+            status: complaintStatus,
+          },
+        }),
+      );
     }
 
     await notifyCitizenComplaintStatus({

@@ -1,5 +1,10 @@
+const { randomUUID } = require("crypto");
 const { pool } = require("../config/db");
-const { getFirebaseMessaging, isFirebaseAuthEnabled } = require("../config/firebaseAdmin");
+const {
+  getFirebaseMessaging,
+  isFirebaseAdminConfigured,
+  isFirebaseAuthEnabled,
+} = require("../config/firebaseAdmin");
 const logger = require("./logger");
 
 function stringifyData(data = {}) {
@@ -8,6 +13,44 @@ function stringifyData(data = {}) {
       .filter(([, value]) => value !== undefined && value !== null)
       .map(([key, value]) => [key, String(value)])
   );
+}
+
+function buildRealtimeNotification({
+  channel = "general",
+  title = "CivicLink",
+  body = "You have a CivicLink update.",
+  urlPath = "/",
+  severity = "info",
+  entityType = "",
+  entityId = "",
+  data = {},
+}) {
+  return {
+    id: randomUUID(),
+    channel,
+    title,
+    body,
+    url_path: urlPath,
+    severity,
+    entity_type: entityType,
+    entity_id: entityId,
+    data,
+    created_at: new Date().toISOString(),
+  };
+}
+
+function emitRealtimeNotification(io, roomNames, notification) {
+  if (!io || !notification) {
+    return;
+  }
+
+  for (const roomName of roomNames) {
+    if (!roomName) {
+      continue;
+    }
+
+    io.to(roomName).emit("notification", notification);
+  }
 }
 
 function isInvalidTokenError(error) {
@@ -68,7 +111,7 @@ async function findActiveTokens({ userIds = [], roles = [], apps = [] }) {
 
 async function sendMobileNotification({ userIds = [], roles = [], apps = [], title, body, data = {} }) {
   try {
-    if (!isFirebaseAuthEnabled()) {
+    if (!isFirebaseAuthEnabled() || !isFirebaseAdminConfigured()) {
       logger.info(`Mobile push skipped; Firebase Admin is not configured: ${title}`);
       return { sent: 0, skipped: true };
     }
@@ -157,6 +200,8 @@ exports.sendNotification = (message) => {
   logger.info(`NOTIFICATION: ${message}`);
 };
 
+exports.buildRealtimeNotification = buildRealtimeNotification;
+exports.emitRealtimeNotification = emitRealtimeNotification;
 exports.notifyWorkerAssignment = notifyWorkerAssignment;
 exports.notifyCitizenComplaintStatus = notifyCitizenComplaintStatus;
 exports.sendMobileNotification = sendMobileNotification;

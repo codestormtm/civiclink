@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "../api/api";
 import ComplaintSubmissionSuccess from "../components/ComplaintSubmissionSuccess";
 import IntakeChat from "../components/IntakeChat";
@@ -24,7 +24,7 @@ export default function GuidedReportPage({ language, onTrack }) {
   const [error, setError] = useState("");
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
-  const startSession = async (selectedLanguage) => {
+  const startSession = useCallback(async (selectedLanguage) => {
     setStarting(true);
     setError("");
     setMessages([]);
@@ -47,11 +47,11 @@ export default function GuidedReportPage({ language, onTrack }) {
     } finally {
       setStarting(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
     void startSession(language || "en");
-  }, [language]);
+  }, [language, startSession]);
 
   const handleSend = async (text, locationData = null) => {
     if (!sessionToken || typing) {

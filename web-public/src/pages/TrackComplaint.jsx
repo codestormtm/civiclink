@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "../api/api";
 import { useCitizenI18n } from "../i18n";
 import {
@@ -145,7 +145,7 @@ function PastComplaintList({ refs, details, activeId, onOpen, onRemove, formatDa
   );
 }
 
-export default function TrackComplaint() {
+export default function TrackComplaint({ externalComplaintId = "" }) {
   const { t, formatDateTime } = useCitizenI18n();
   const [complaintId, setComplaintId] = useState(() => {
     const match = window.location.pathname.match(/^\/track\/([^/]+)/);
@@ -223,20 +223,20 @@ export default function TrackComplaint() {
     GENERAL: t("attachment.general"),
   };
 
-  const syncRecentRefs = () => {
+  const syncRecentRefs = useCallback(() => {
     setRecentRefs(getRecentComplaintRefs());
     setRecentDetails(getRecentComplaintDetails());
-  };
+  }, []);
 
-  const pruneStoredComplaintId = (id) => {
+  const pruneStoredComplaintId = useCallback((id) => {
     removeRecentComplaintRef(id);
     if (getLastTrackedComplaintId() === id) {
       setLastTrackedComplaintId("");
     }
     syncRecentRefs();
-  };
+  }, [syncRecentRefs]);
 
-  const trackComplaint = async (id = complaintId, options = {}) => {
+  const trackComplaint = useCallback(async (id = complaintId, options = {}) => {
     const normalizedId = String(id || "").trim();
     if (!normalizedId) {
       return;
@@ -264,7 +264,7 @@ export default function TrackComplaint() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [complaintId, pruneStoredComplaintId, syncRecentRefs, t]);
 
   useEffect(() => {
     const pathMatch = window.location.pathname.match(/^\/track\/([^/]+)/);
@@ -274,7 +274,16 @@ export default function TrackComplaint() {
     }
 
     void trackComplaint(lastTrackedId, { fromStored: true });
-  }, []);
+  }, [trackComplaint]);
+
+  useEffect(() => {
+    const normalizedId = String(externalComplaintId || "").trim();
+    if (!normalizedId || normalizedId === complaintId) {
+      return;
+    }
+
+    void trackComplaint(normalizedId, { fromStored: true });
+  }, [complaintId, externalComplaintId, trackComplaint]);
 
   const handleKeyDown = (event) => {
     if (event.key === "Enter") {

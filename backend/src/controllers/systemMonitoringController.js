@@ -32,6 +32,10 @@ function buildMonitoringFilters(query) {
   };
 }
 
+function buildLimit(queryValue, defaultLimit) {
+  return Math.min(Math.max(Number(queryValue) || defaultLimit, 1), 500);
+}
+
 function toCsvValue(value) {
   const text = value == null ? "" : String(value);
   return `"${text.replace(/"/g, "\"\"")}"`;
@@ -99,21 +103,25 @@ exports.getMonitoringSummary = async (_req, res) => {
 exports.getMonitoringIncidents = async (_req, res) => {
   try {
     await ensureMonitoringSchema();
+    const limit = buildLimit(_req.query.limit, 100);
 
-    const result = await pool.query(`
-      SELECT
-        mi.id,
-        mt.target_key,
-        mt.label,
-        mi.started_at,
-        mi.ended_at,
-        mi.status,
-        mi.summary
-      FROM monitor_incidents mi
-      JOIN monitor_targets mt ON mt.id = mi.target_id
-      ORDER BY mi.started_at DESC
-      LIMIT 100
-    `);
+    const result = await pool.query(
+      `
+        SELECT
+          mi.id,
+          mt.target_key,
+          mt.label,
+          mi.started_at,
+          mi.ended_at,
+          mi.status,
+          mi.summary
+        FROM monitor_incidents mi
+        JOIN monitor_targets mt ON mt.id = mi.target_id
+        ORDER BY mi.started_at DESC
+        LIMIT $1
+      `,
+      [limit]
+    );
 
     return success(res, result.rows);
   } catch (err) {
@@ -126,7 +134,7 @@ exports.getMonitoringLogs = async (req, res) => {
     await ensureMonitoringSchema();
 
     const { params, whereClause } = buildMonitoringFilters(req.query);
-    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const limit = buildLimit(req.query.limit, 100);
     params.push(limit);
 
     const result = await pool.query(
@@ -302,21 +310,25 @@ exports.getWorkerActivity = async (_req, res) => {
 exports.getMonitoringAlerts = async (_req, res) => {
   try {
     await ensureMonitoringSchema();
+    const limit = buildLimit(_req.query.limit, 25);
 
-    const result = await pool.query(`
-      SELECT
-        ma.id,
-        mt.target_key,
-        mt.label,
-        ma.severity,
-        ma.message,
-        ma.created_at,
-        ma.incident_id
-      FROM monitor_alerts ma
-      JOIN monitor_targets mt ON mt.id = ma.target_id
-      ORDER BY ma.created_at DESC
-      LIMIT 25
-    `);
+    const result = await pool.query(
+      `
+        SELECT
+          ma.id,
+          mt.target_key,
+          mt.label,
+          ma.severity,
+          ma.message,
+          ma.created_at,
+          ma.incident_id
+        FROM monitor_alerts ma
+        JOIN monitor_targets mt ON mt.id = ma.target_id
+        ORDER BY ma.created_at DESC
+        LIMIT $1
+      `,
+      [limit]
+    );
 
     return success(res, result.rows);
   } catch (err) {

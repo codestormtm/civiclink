@@ -2,6 +2,10 @@ const { pool } = require("../config/db");
 const { minioClient, bucketName: BUCKET } = require("../config/minio");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
 const {
+  buildRealtimeNotification,
+  emitRealtimeNotification,
+} = require("../utils/notificationService");
+const {
   buildStoredObjectReference,
   mapAttachmentForResponse,
   mapAttachmentsForResponse,
@@ -142,6 +146,24 @@ exports.createComplaint = async (req, res) => {
     const io = req.app.get("io");
     if (io && enrichedResult.rows[0]) {
       io.to(ROOM_ADMINS).emit("new_issue", enrichedResult.rows[0]);
+      emitRealtimeNotification(
+        io,
+        [ROOM_ADMINS],
+        buildRealtimeNotification({
+          channel: "admin_new_issue",
+          title: "New complaint submitted",
+          body: enrichedResult.rows[0].title
+            ? `${enrichedResult.rows[0].title} was submitted.`
+            : "A new complaint was submitted.",
+          urlPath: "/",
+          entityType: "complaint",
+          entityId: enrichedResult.rows[0].id,
+          data: {
+            complaint_id: enrichedResult.rows[0].id,
+            department_id: enrichedResult.rows[0].department_id,
+          },
+        }),
+      );
     }
 
     res.status(201).json({

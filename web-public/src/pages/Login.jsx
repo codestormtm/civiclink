@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   createUserWithEmailAndPassword,
   getRedirectResult,
@@ -40,6 +40,17 @@ const GOOGLE_REDIRECT_FALLBACK_CODES = new Set([
   "auth/operation-not-supported-in-this-environment",
   "auth/popup-blocked",
 ]);
+const FIREBASE_TOKEN_SERVICE_HOST = "securetoken.googleapis.com";
+
+function tagFirebaseTokenServiceError(error) {
+  if (!error || typeof error !== "object") {
+    return error;
+  }
+
+  error.civiclinkStage = "firebase-token-service";
+  error.civiclinkHost = FIREBASE_TOKEN_SERVICE_HOST;
+  return error;
+}
 
 function shouldUseGoogleRedirect() {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
@@ -75,7 +86,13 @@ export default function Login({ onLoggedIn }) {
   const [verificationState, setVerificationState] = useState(INITIAL_VERIFICATION_STATE);
   const firebaseConfigError = getFirebaseConfigError();
 
-  const getFirebaseErrorMessage = (firebaseError, fallback) => {
+  const getFirebaseErrorMessage = useCallback((firebaseError, fallback) => {
+    if (firebaseError?.civiclinkStage === "firebase-token-service") {
+      return t("auth.error.firebaseTokenService", {
+        host: firebaseError?.civiclinkHost || FIREBASE_TOKEN_SERVICE_HOST,
+      });
+    }
+
     switch (firebaseError?.code) {
       case "auth/email-already-in-use":
         return "That email address is already in use.";
@@ -97,19 +114,25 @@ export default function Login({ onLoggedIn }) {
       default:
         return fallback;
     }
-  };
+  }, [t]);
 
-  const getSessionExchangeErrorMessage = (requestError) => {
+  const getSessionExchangeErrorMessage = useCallback((requestError) => {
     if (requestError?.response?.data?.message) {
       return requestError.response.data.message;
     }
 
-    if (requestError?.code === "ERR_NETWORK" || /Network Error|ERR_CONNECTION_REFUSED/i.test(requestError?.message || "")) {
+    if (requestError?.civiclinkStage === "firebase-token-service") {
+      return t("auth.error.firebaseTokenService", {
+        host: requestError?.civiclinkHost || FIREBASE_TOKEN_SERVICE_HOST,
+      });
+    }
+
+    if (requestError?.code === "ERR_NETWORK" || /Network Error|ERR_CONNECTION_REFUSED|ERR_NAME_NOT_RESOLVED/i.test(requestError?.message || "")) {
       return t("auth.error.backendOffline", { url: API_BASE_URL });
     }
 
     return t("auth.error.backend");
-  };
+  }, [t]);
 
   const buildHandledAuthKey = (firebaseUser) => {
     if (!firebaseUser) {
@@ -125,7 +148,14 @@ export default function Login({ onLoggedIn }) {
 
   const exchangeFirebaseSession = async (firebaseUser, preferredLanguage) => {
     try {
-      const idToken = await firebaseUser.getIdToken(true);
+      let idToken;
+
+      try {
+        idToken = await firebaseUser.getIdToken(true);
+      } catch (err) {
+        throw tagFirebaseTokenServiceError(err);
+      }
+
       const payload = { idToken };
       const pendingLanguage = preferredLanguage || getPendingSignupLanguage();
 
@@ -217,8 +247,8 @@ export default function Login({ onLoggedIn }) {
 
         setError(
           err?.response?.data?.message
-            || getSessionExchangeErrorMessage(err)
-            || getFirebaseErrorMessage(err, t("auth.error.google")),
+            || getFirebaseErrorMessage(err, getSessionExchangeErrorMessage(err))
+            || t("auth.error.google"),
         );
       }
     })();
@@ -235,7 +265,7 @@ export default function Login({ onLoggedIn }) {
       isMounted = false;
       unsubscribe();
     };
-  }, [onLoggedIn, syncSignedInUser, t]);
+  }, [getFirebaseErrorMessage, getSessionExchangeErrorMessage, onLoggedIn, t]);
 
   const clearFeedback = () => {
     setError("");
@@ -295,8 +325,8 @@ export default function Login({ onLoggedIn }) {
     } catch (err) {
       setError(
         err?.response?.data?.message
-          || getSessionExchangeErrorMessage(err)
-          || getFirebaseErrorMessage(err, t("auth.error.emailPassword")),
+          || getFirebaseErrorMessage(err, getSessionExchangeErrorMessage(err))
+          || t("auth.error.emailPassword"),
       );
     } finally {
       finishAction();
@@ -378,8 +408,8 @@ export default function Login({ onLoggedIn }) {
       setVerificationState(INITIAL_VERIFICATION_STATE);
       setError(
         err?.response?.data?.message
-          || getSessionExchangeErrorMessage(err)
-          || getFirebaseErrorMessage(err, t("auth.error.google")),
+          || getFirebaseErrorMessage(err, getSessionExchangeErrorMessage(err))
+          || t("auth.error.google"),
       );
     } finally {
       finishAction();
@@ -426,7 +456,7 @@ export default function Login({ onLoggedIn }) {
   };
 
   const handleKey = (event) => {
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && !loadingAction) {
       if (tab === "login") {
         handleLogin();
       } else {
