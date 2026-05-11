@@ -54,8 +54,8 @@ $services = @(
     Name = "backend"
     WorkingDirectory = (Join-Path $repoRoot "backend")
     HealthUrl = "http://localhost:$backendPort/api/health/app"
-    FilePath = "C:\Program Files\nodejs\node.exe"
-    Arguments = @(".\\src\\server.js")
+    FilePath = "npm.cmd"
+    Arguments = @("run", "dev:watch")
   },
   @{
     Name = "web-public"

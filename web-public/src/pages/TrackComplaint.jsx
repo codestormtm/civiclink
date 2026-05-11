@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import api from "../api/api";
 import { useCitizenI18n } from "../i18n";
 import {
@@ -160,6 +160,7 @@ export default function TrackComplaint({ externalComplaintId = "" }) {
   const [attachmentPreviewUrls, setAttachmentPreviewUrls] = useState({});
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState("");
+  const initialTrackLoadedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -244,7 +245,6 @@ export default function TrackComplaint({ externalComplaintId = "" }) {
 
     try {
       setError("");
-      setResult(null);
       setLoading(true);
       setComplaintId(normalizedId);
 
@@ -260,6 +260,7 @@ export default function TrackComplaint({ externalComplaintId = "" }) {
         pruneStoredComplaintId(normalizedId);
       }
 
+      setResult(null);
       setError(message);
     } finally {
       setLoading(false);
@@ -267,6 +268,12 @@ export default function TrackComplaint({ externalComplaintId = "" }) {
   }, [complaintId, pruneStoredComplaintId, syncRecentRefs, t]);
 
   useEffect(() => {
+    if (initialTrackLoadedRef.current) {
+      return;
+    }
+
+    initialTrackLoadedRef.current = true;
+
     const pathMatch = window.location.pathname.match(/^\/track\/([^/]+)/);
     const lastTrackedId = pathMatch ? decodeURIComponent(pathMatch[1]) : getLastTrackedComplaintId();
     if (!lastTrackedId) {

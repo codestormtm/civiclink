@@ -6,7 +6,7 @@ const {
   isAiConfigured,
 } = require("../services/ai/intakeService");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
-const { ROOM_ADMINS } = require("../utils/socketRooms");
+const { ROOM_ADMINS, ROOM_PUBLIC } = require("../utils/socketRooms");
 const logger = require("../utils/logger");
 const { failure } = require("../utils/response");
 
@@ -262,6 +262,12 @@ exports.submitSession = async (req, res) => {
     const io = req.app.get("io");
     if (io && enrichedComplaint.rows[0]) {
       io.to(ROOM_ADMINS).emit("new_issue", enrichedComplaint.rows[0]);
+      io.to(ROOM_PUBLIC).emit("public_activity_updated", {
+        type: "new_issue",
+        complaint_id: enrichedComplaint.rows[0].id,
+        department_id: enrichedComplaint.rows[0].department_id,
+        status: enrichedComplaint.rows[0].status,
+      });
     }
 
     res.json({ success: true, data: complaint.rows[0] });

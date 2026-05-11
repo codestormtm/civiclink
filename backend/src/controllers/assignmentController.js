@@ -8,7 +8,7 @@ const {
 } = require("../utils/notificationService");
 const { success, failure } = require("../utils/response");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
-const { ROOM_ADMINS, userRoom } = require("../utils/socketRooms");
+const { ROOM_ADMINS, ROOM_PUBLIC, userRoom } = require("../utils/socketRooms");
 
 exports.assignTask = async (req, res) => {
   const { complaint_id, worker_user_id } = req.body;
@@ -115,6 +115,12 @@ exports.assignTask = async (req, res) => {
     const assignmentPayload = { ...result.rows[0], worker_name: worker.name };
     io.to(ROOM_ADMINS).emit("task_assigned", assignmentPayload);
     io.to(userRoom(worker_user_id)).emit("task_assigned", assignmentPayload);
+    io.to(ROOM_PUBLIC).emit("public_activity_updated", {
+      type: "status_updated",
+      complaint_id,
+      department_id: complaint.department_id,
+      status: "ASSIGNED",
+    });
 
     emitRealtimeNotification(
       io,
@@ -294,6 +300,12 @@ exports.updateTaskStatus = async (req, res) => {
     const io = req.app.get("io");
     io.to(ROOM_ADMINS).emit("status_updated", result.rows[0]);
     io.to(userRoom(req.user.id)).emit("status_updated", result.rows[0]);
+    io.to(ROOM_PUBLIC).emit("public_activity_updated", {
+      type: "status_updated",
+      complaint_id: result.rows[0]?.complaint_id,
+      department_id: result.rows[0]?.department_id,
+      status,
+    });
 
     emitRealtimeNotification(
       io,

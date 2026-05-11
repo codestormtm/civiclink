@@ -6,7 +6,7 @@ const { Server } = require("socket.io");
 const app = require("./app");
 const env = require("./config/env");
 const { isAllowedOrigin } = require("./utils/originSecurity");
-const { attachSocketRooms } = require("./utils/socketRooms");
+const { ROOM_PUBLIC, attachSocketRooms } = require("./utils/socketRooms");
 const { pool, checkDatabaseConnection } = require("./config/db");
 const { ensureBucketExists } = require("./config/minio");
 const { ensureFirebaseAuthSchema } = require("./services/firebaseAuthSchemaService");
@@ -39,7 +39,9 @@ io.use((socket, next) => {
   const token = String(socket.handshake.auth?.token || bearerToken).trim();
 
   if (!token) {
-    next(new Error("Authentication required"));
+    socket.data.user = { role: "PUBLIC" };
+    socket.join(ROOM_PUBLIC);
+    next();
     return;
   }
 

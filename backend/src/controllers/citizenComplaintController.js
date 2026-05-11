@@ -12,7 +12,7 @@ const {
   resolveAttachmentRole,
 } = require("../utils/attachmentStorage");
 const { getRequestOrigin } = require("../utils/requestOrigin");
-const { ROOM_ADMINS } = require("../utils/socketRooms");
+const { ROOM_ADMINS, ROOM_PUBLIC } = require("../utils/socketRooms");
 
 // GET /citizen-complaints/departments
 exports.getDepartments = async (req, res) => {
@@ -146,6 +146,12 @@ exports.createComplaint = async (req, res) => {
     const io = req.app.get("io");
     if (io && enrichedResult.rows[0]) {
       io.to(ROOM_ADMINS).emit("new_issue", enrichedResult.rows[0]);
+      io.to(ROOM_PUBLIC).emit("public_activity_updated", {
+        type: "new_issue",
+        complaint_id: enrichedResult.rows[0].id,
+        department_id: enrichedResult.rows[0].department_id,
+        status: enrichedResult.rows[0].status,
+      });
       emitRealtimeNotification(
         io,
         [ROOM_ADMINS],

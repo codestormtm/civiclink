@@ -208,6 +208,8 @@ VITE_FIREBASE_APP_ID=
 
 ## Local Development Setup
 
+If PowerShell blocks `npm` on your machine, use `npm.cmd` for the same commands.
+
 Install dependencies for each workspace:
 
 ```bash
@@ -222,6 +224,12 @@ Start infrastructure:
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d postgres redis minio
+```
+
+On Windows, the root helper does the same:
+
+```powershell
+npm run dev:infra:up
 ```
 
 Docker Compose will use the defaults from `docker/docker-compose.yml`. You can also create `docker/.env` manually and pass it with `--env-file docker/.env`:
@@ -279,19 +287,26 @@ npm run create:system-admin --prefix backend -- "System Admin" "sysadmin@example
 Start the apps manually:
 
 ```bash
-npm run dev --prefix backend
+npm run dev:watch --prefix backend
 npm run dev --prefix web-public
 npm run dev --prefix web-admin
 npm run dev --prefix web-worker
 ```
 
-On Windows, the root helper can start the full development stack and write logs into `logs/`:
+On Windows, the root helper can start the app processes and write logs into `logs/`:
 
 ```powershell
 npm run dev:start-all
 ```
 
-The root `dev:*` scripts use `npm.cmd`, so they are Windows-oriented. On macOS/Linux, prefer the explicit `npm run dev --prefix ...` commands above.
+Recommended Windows flow:
+
+```powershell
+npm run dev:infra:up
+npm run dev:start-all
+```
+
+The root `dev:*` scripts use `npm.cmd`, so they are Windows-oriented. On macOS/Linux, prefer the explicit `npm run ... --prefix ...` commands above.
 
 ## Build Commands
 
@@ -301,12 +316,24 @@ npm run build --prefix web-admin
 npm run build --prefix web-worker
 ```
 
+Windows PowerShell helper:
+
+```powershell
+npm run build:web
+```
+
 Lint each frontend:
 
 ```bash
 npm run lint --prefix web-public
 npm run lint --prefix web-admin
 npm run lint --prefix web-worker
+```
+
+Windows PowerShell helper:
+
+```powershell
+npm run lint:web
 ```
 
 The backend currently does not define a lint or test script.

@@ -7,7 +7,7 @@ const INITIAL_FORM = {
   confirm_password: "",
 };
 
-export default function Header() {
+export default function Header({ onToggleMenu, isMenuOpen = false }) {
   const name = localStorage.getItem("name");
   const role = localStorage.getItem("role");
   const department = localStorage.getItem("department");
@@ -52,8 +52,19 @@ export default function Header() {
   return (
     <>
       <div className="topbar">
-        <div className="topbar-title">
-          CivicLink {department ? `| ${department}` : ""}
+        <div className="topbar-title-group">
+          <button
+            type="button"
+            className="admin-menu-toggle"
+            onClick={onToggleMenu}
+            aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={isMenuOpen}
+          >
+            {isMenuOpen ? "Close" : "Menu"}
+          </button>
+          <div className="topbar-title">
+            CivicLink {department ? `| ${department}` : ""}
+          </div>
         </div>
 
         <div className="topbar-right">

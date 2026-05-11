@@ -56,6 +56,9 @@
 @layer components {
   .worker-shell {
     @apply min-h-screen;
+    background:
+      radial-gradient(circle at top right, rgba(246, 190, 50, 0.1), transparent 20%),
+      linear-gradient(180deg, rgba(255, 251, 244, 0.88) 0%, rgba(251, 247, 238, 0.92) 100%);
     animation: sl-fade-in var(--sl-motion-base) var(--sl-motion-ease-standard);
   }
 
@@ -73,6 +76,7 @@
   .worker-location-card {
     @apply rounded-[18px] border bg-white/94 shadow-sl-card;
     border-color: rgba(138, 21, 56, 0.1);
+    backdrop-filter: blur(12px);
   }
 
   .worker-auth-shell {
@@ -380,6 +384,23 @@
     @apply justify-end;
   }
 
+  .worker-header {
+    backdrop-filter: blur(18px);
+  }
+
+  .worker-hero-card,
+  .worker-task-card,
+  .worker-location-card,
+  .worker-lightbox-card,
+  .worker-settings-panel {
+    box-shadow: 0 20px 42px rgba(77, 34, 12, 0.14);
+  }
+
+  .worker-task-card h2,
+  .worker-title {
+    text-wrap: balance;
+  }
+
   button,
   a,
   input,
@@ -440,15 +461,80 @@
   }
 
   @media (max-width: 767px) {
+    .worker-wrap {
+      padding: 1rem 0.9rem 2.2rem;
+    }
+
     .worker-toast-stack {
       left: 1rem;
       right: 1rem;
       width: auto;
     }
 
+    .worker-card,
+    .worker-task-card,
+    .worker-location-card,
+    .worker-hero-card,
+    .worker-settings-panel {
+      border-radius: 18px;
+    }
+
+    .worker-hero-card,
+    .worker-section-header,
+    .worker-task-top,
+    .worker-task-footer,
+    .worker-header-main,
+    .worker-header-actions {
+      gap: 12px;
+    }
+
+    .worker-hero-card,
+    .worker-section-header,
+    .worker-task-top,
+    .worker-task-footer {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .worker-meta-grid,
+    .worker-detail-grid,
+    .worker-actions,
+    .worker-upload-grid,
+    .worker-attachment-file-row {
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+
+    .worker-primary-btn,
+    .worker-secondary-btn,
+    .worker-tab-btn {
+      width: 100%;
+    }
+
+    .worker-toast-actions {
+      @apply justify-stretch;
+    }
+
     .worker-title,
     .worker-task-card h2 {
       @apply text-2xl;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .worker-title,
+    .worker-task-card h2 {
+      font-size: 1.45rem;
+    }
+
+    .worker-auth-card,
+    .worker-card,
+    .worker-task-card,
+    .worker-location-card,
+    .worker-settings-panel {
+      padding-left: 1rem;
+      padding-right: 1rem;
     }
   }
 }

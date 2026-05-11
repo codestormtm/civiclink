@@ -199,6 +199,42 @@ function normalizeMultilineSecret(value) {
 }
 
 function buildFirebaseServiceAccount() {
+  const serviceAccountFile = process.env.FIREBASE_SERVICE_ACCOUNT_FILE;
+
+  if (serviceAccountFile && serviceAccountFile.trim()) {
+    let fileContents;
+    let parsed;
+
+    try {
+      fileContents = readFileSync(serviceAccountFile.trim(), "utf8");
+    } catch {
+      console.error(`App startup failed: FIREBASE_SERVICE_ACCOUNT_FILE not found: ${serviceAccountFile}`);
+      process.exit(1);
+    }
+
+    try {
+      parsed = JSON.parse(fileContents);
+    } catch {
+      console.error("App startup failed: FIREBASE_SERVICE_ACCOUNT_FILE does not contain valid JSON");
+      process.exit(1);
+    }
+
+    const projectId = parsed.project_id || parsed.projectId;
+    const clientEmail = parsed.client_email || parsed.clientEmail;
+    const privateKey = normalizeMultilineSecret(parsed.private_key || parsed.privateKey);
+
+    if (!projectId || !clientEmail || !privateKey) {
+      console.error("App startup failed: Firebase service account file is missing required fields");
+      process.exit(1);
+    }
+
+    return {
+      projectId,
+      clientEmail,
+      privateKey,
+    };
+  }
+
   const jsonValue = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 
   if (jsonValue && jsonValue.trim()) {

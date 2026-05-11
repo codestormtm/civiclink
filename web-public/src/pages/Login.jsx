@@ -42,6 +42,12 @@ const GOOGLE_REDIRECT_FALLBACK_CODES = new Set([
 ]);
 const FIREBASE_TOKEN_SERVICE_HOST = "securetoken.googleapis.com";
 
+function tagCivicLinkError(message) {
+  const error = new Error(message);
+  error.civiclinkMessage = message;
+  return error;
+}
+
 function tagFirebaseTokenServiceError(error) {
   if (!error || typeof error !== "object") {
     return error;
@@ -50,6 +56,10 @@ function tagFirebaseTokenServiceError(error) {
   error.civiclinkStage = "firebase-token-service";
   error.civiclinkHost = FIREBASE_TOKEN_SERVICE_HOST;
   return error;
+}
+
+function isMissingFirebaseStatusEndpoint(error) {
+  return error?.response?.status === 404;
 }
 
 function shouldUseGoogleRedirect() {
@@ -117,6 +127,10 @@ export default function Login({ onLoggedIn }) {
   }, [t]);
 
   const getSessionExchangeErrorMessage = useCallback((requestError) => {
+    if (requestError?.civiclinkMessage) {
+      return requestError.civiclinkMessage;
+    }
+
     if (requestError?.response?.data?.message) {
       return requestError.response.data.message;
     }
@@ -127,11 +141,54 @@ export default function Login({ onLoggedIn }) {
       });
     }
 
+    if (requestError?.response?.status === 502) {
+      return t("auth.error.backendOffline", { url: API_BASE_URL });
+    }
+
     if (requestError?.code === "ERR_NETWORK" || /Network Error|ERR_CONNECTION_REFUSED|ERR_NAME_NOT_RESOLVED/i.test(requestError?.message || "")) {
       return t("auth.error.backendOffline", { url: API_BASE_URL });
     }
 
     return t("auth.error.backend");
+  }, [t]);
+
+  const ensureFirebaseSessionReady = useCallback(async () => {
+    try {
+      const res = await api.get("/auth/firebase/status");
+      const status = res.data?.data || {};
+
+      if (!status.firebase_auth_enabled) {
+        throw tagCivicLinkError("Firebase citizen authentication is not configured.");
+      }
+
+      if (!status.session_exchange_ready) {
+        throw tagCivicLinkError("Firebase backend session exchange is not configured.");
+      }
+
+      if (status.firebase_auth_enabled && status.firebase_service_account_configured === false) {
+        console.info("Firebase Admin service account is not configured for backend push features; continuing with token-based sign-in.");
+      }
+    } catch (err) {
+      // Older backend builds can exchange Firebase sessions without exposing
+      // the optional status probe endpoint used by newer web clients.
+      if (isMissingFirebaseStatusEndpoint(err)) {
+        return;
+      }
+
+      if (err?.civiclinkMessage || err?.response?.data?.message) {
+        throw err;
+      }
+
+      if (err?.response?.status === 502) {
+        throw tagCivicLinkError(t("auth.error.backendOffline", { url: API_BASE_URL }));
+      }
+
+      if (err?.code === "ERR_NETWORK" || /Network Error|ERR_CONNECTION_REFUSED|ERR_NAME_NOT_RESOLVED/i.test(err?.message || "")) {
+        throw tagCivicLinkError(t("auth.error.backendOffline", { url: API_BASE_URL }));
+      }
+
+      throw err;
+    }
   }, [t]);
 
   const buildHandledAuthKey = (firebaseUser) => {
@@ -148,6 +205,8 @@ export default function Login({ onLoggedIn }) {
 
   const exchangeFirebaseSession = async (firebaseUser, preferredLanguage) => {
     try {
+      await ensureFirebaseSessionReady();
+
       let idToken;
 
       try {
@@ -303,6 +362,7 @@ export default function Login({ onLoggedIn }) {
 
     try {
       beginAction("login");
+      await ensureFirebaseSessionReady();
       const credential = await signInWithEmailAndPassword(
         auth,
         loginForm.email.trim(),
@@ -390,6 +450,7 @@ export default function Login({ onLoggedIn }) {
     try {
       beginAction("google");
       setVerificationState(INITIAL_VERIFICATION_STATE);
+      await ensureFirebaseSessionReady();
 
       if (shouldUseGoogleRedirect()) {
         await signInWithRedirect(auth, googleProvider);

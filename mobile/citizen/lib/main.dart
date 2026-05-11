@@ -454,6 +454,12 @@ class _CivicLinkWebViewShellState extends State<CivicLinkWebViewShell> {
 
   Future<void> _handleNativeGoogleSignIn(Map<String, dynamic> payload) async {
     try {
+      final readinessError = await _getFirebaseSessionReadinessError();
+      if (readinessError != null) {
+        _showSnack(readinessError);
+        return;
+      }
+
       if (!_firebaseReady) {
         await Firebase.initializeApp();
         _firebaseReady = true;
@@ -495,7 +501,12 @@ class _CivicLinkWebViewShellState extends State<CivicLinkWebViewShell> {
       );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        _showSnack(_extractErrorMessage(response.body));
+        _showSnack(
+          _extractErrorMessage(
+            response.body,
+            fallback: _buildBackendUnavailableMessage(),
+          ),
+        );
         return;
       }
 
@@ -512,7 +523,7 @@ class _CivicLinkWebViewShellState extends State<CivicLinkWebViewShell> {
       _showSnack('Signed in with Google.');
     } catch (err) {
       debugPrint('Native Google sign-in failed: $err');
-      _showSnack('Google sign-in failed. Check Firebase Android setup.');
+      _showSnack(_buildBackendUnavailableMessage());
     }
   }
 
@@ -647,15 +658,51 @@ class _CivicLinkWebViewShellState extends State<CivicLinkWebViewShell> {
     );
   }
 
-  String _extractErrorMessage(String body) {
+  String _buildBackendUnavailableMessage() {
+    return 'CivicLink backend is unavailable. Check that $_apiBaseUrl is running and reachable.';
+  }
+
+  Future<String?> _getFirebaseSessionReadinessError() async {
+    try {
+      final response = await http.get(Uri.parse('$_apiBaseUrl/auth/firebase/status'));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return _extractErrorMessage(
+          response.body,
+          fallback: _buildBackendUnavailableMessage(),
+        );
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = (decoded['data'] as Map<String, dynamic>? ?? const {});
+
+      if (data['firebase_auth_enabled'] != true) {
+        return 'Firebase citizen authentication is not configured.';
+      }
+
+      if (data['firebase_admin_configured'] != true) {
+        return 'Firebase Admin is not configured.';
+      }
+
+      if (data['session_exchange_ready'] != true) {
+        return 'Unable to create a CivicLink session right now.';
+      }
+
+      return null;
+    } catch (_) {
+      return _buildBackendUnavailableMessage();
+    }
+  }
+
+  String _extractErrorMessage(String body, {String fallback = 'Google sign-in failed.'}) {
     try {
       final decoded = jsonDecode(body) as Map<String, dynamic>;
       return (decoded['message'] ??
               decoded['error'] ??
-              'Google sign-in failed.')
+              fallback)
           .toString();
     } catch (_) {
-      return 'Google sign-in failed.';
+      return fallback;
     }
   }
 

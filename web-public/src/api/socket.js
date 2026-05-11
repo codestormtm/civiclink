@@ -20,6 +20,14 @@ export function connectCitizenSocket() {
   }
 }
 
+export function connectPublicSocket() {
+  socket.auth = {};
+
+  if (!socket.connected) {
+    socket.connect();
+  }
+}
+
 export function disconnectCitizenSocket() {
   if (socket.connected) {
     socket.disconnect();

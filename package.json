@@ -3,13 +3,14 @@
   "private": true,
   "scripts": {
     "dev:backend": "npm.cmd run dev --prefix backend",
+    "dev:backend:watch": "npm.cmd run dev:watch --prefix backend",
     "dev:public": "npm.cmd run dev --prefix web-public",
     "dev:worker": "npm.cmd run dev --prefix web-worker",
     "dev:admin": "npm.cmd run dev --prefix web-admin",
-    "dev:start-all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev-stack.ps1"
-  },
-  "dependencies": {
-    "leaflet": "^1.9.4",
-    "react-leaflet": "^5.0.0"
+    "dev:start-all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev-stack.ps1",
+    "dev:infra:up": "docker compose -f docker/docker-compose.yml up -d postgres redis minio",
+    "dev:infra:down": "docker compose -f docker/docker-compose.yml down",
+    "lint:web": "npm.cmd run lint --prefix web-public && npm.cmd run lint --prefix web-admin && npm.cmd run lint --prefix web-worker",
+    "build:web": "npm.cmd run build --prefix web-public && npm.cmd run build --prefix web-admin && npm.cmd run build --prefix web-worker"
   }
 }

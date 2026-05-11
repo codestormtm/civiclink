@@ -1,1 +1,24 @@
 node_modules
+
+# Generated local logs and build output
+logs/
+*.log
+**/dist/
+**/.vite/
+
+# Local environment files
+backend/.env
+backend/firebase-service-account.json
+docker/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+
+# Flutter and Android local build artifacts
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub/
+**/build/
+**/android/.gradle/

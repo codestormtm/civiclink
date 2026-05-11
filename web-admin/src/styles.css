@@ -31,19 +31,36 @@
 
 @layer components {
   .layout {
-    @apply flex h-screen overflow-hidden;
+    @apply flex min-h-screen overflow-hidden;
     animation: sl-fade-in var(--sl-motion-base) var(--sl-motion-ease-standard);
   }
 
   .layout-content {
     @apply flex-1 overflow-y-auto;
-    background: linear-gradient(180deg, #fff5df 0%, var(--sl-surface) 100%);
+    background:
+      radial-gradient(circle at top right, rgba(246, 190, 50, 0.1), transparent 22%),
+      linear-gradient(180deg, #fff5df 0%, var(--sl-surface) 100%);
     animation: sl-fade-up var(--sl-motion-slow) var(--sl-motion-ease-standard);
+  }
+
+  .sidebar-backdrop {
+    @apply pointer-events-none fixed inset-0 z-30 opacity-0;
+    background: rgba(27, 18, 22, 0.42);
+    transition:
+      opacity var(--sl-motion-base) var(--sl-motion-ease-standard),
+      backdrop-filter var(--sl-motion-base) var(--sl-motion-ease-standard);
+    backdrop-filter: blur(0px);
+  }
+
+  .sidebar-backdrop.is-open {
+    @apply pointer-events-auto opacity-100;
+    backdrop-filter: blur(4px);
   }
 
   .sidebar {
     @apply flex w-[240px] shrink-0 flex-col text-[#e9f5ec];
     background: linear-gradient(180deg, var(--sl-green-900) 0%, #08443f 100%);
+    box-shadow: 18px 0 38px rgba(10, 28, 24, 0.12);
   }
 
   .sidebar-brand {
@@ -68,17 +85,20 @@
   }
 
   .sidebar-item {
-    @apply flex items-center gap-2 rounded-[7px] px-3 py-2.5 text-[13px] font-medium text-[#d6e9de] transition;
+    @apply flex w-full items-center gap-2 rounded-[10px] border border-transparent px-3 py-2.5 text-left text-[13px] font-medium text-[#d6e9de] transition;
+    background: transparent;
   }
 
   .sidebar-item:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.14);
     color: var(--sl-white);
   }
 
   .sidebar-item.active {
     @apply font-semibold text-white;
-    background: var(--sl-maroon-900);
+    background: linear-gradient(135deg, var(--sl-maroon-900), #b12450);
+    box-shadow: 0 14px 26px rgba(138, 21, 56, 0.28);
   }
 
   .sidebar-logout {
@@ -92,8 +112,13 @@
   }
 
   .topbar {
-    @apply flex items-center justify-between border-b border-sl-line bg-[rgba(255,250,241,0.96)] px-7 py-[14px] shadow-[0_1px_3px_rgba(77,34,12,0.06)];
+    @apply sticky top-0 z-20 flex items-center justify-between border-b border-[rgba(221,207,191,0.7)] bg-[rgba(255,250,241,0.82)] px-7 py-[14px] shadow-[0_10px_30px_rgba(77,34,12,0.08)];
+    backdrop-filter: blur(18px);
     animation: sl-fade-down var(--sl-motion-slow) var(--sl-motion-ease-standard);
+  }
+
+  .topbar-title-group {
+    @apply flex min-w-0 items-center gap-3;
   }
 
   .topbar-title {
@@ -102,6 +127,18 @@
 
   .topbar-right {
     @apply flex items-center gap-3;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .admin-menu-toggle {
+    @apply hidden items-center justify-center rounded-full border border-[rgba(12,91,85,0.16)] bg-white/85 px-3 py-2 text-xs font-bold uppercase tracking-[0.08em] text-sl-green-900;
+    backdrop-filter: blur(10px);
+  }
+
+  .admin-menu-toggle:hover {
+    background: #fff8ea;
+    border-color: rgba(246, 190, 50, 0.44);
   }
 
   .topbar-role {
@@ -153,7 +190,7 @@
   }
 
   .container {
-    @apply mx-auto my-7 w-full max-w-[1000px] px-7;
+    @apply mx-auto my-7 w-full max-w-[1120px] px-7;
   }
 
   .section-title {
@@ -203,6 +240,7 @@
     @apply rounded-[18px] border bg-white/92 shadow-sl-card;
     border-color: rgba(138, 21, 56, 0.08);
     animation: sl-fade-up var(--sl-motion-slow) var(--sl-motion-ease-soft);
+    backdrop-filter: blur(10px);
   }
 
   .card {
@@ -429,23 +467,61 @@
   .form-card:hover,
   .sa-section:hover {
     transform: translateY(-3px);
+    box-shadow: 0 22px 44px rgba(77, 34, 12, 0.16);
   }
 
   @media (max-width: 1024px) {
     .stats {
       @apply grid-cols-2;
     }
+
+    .layout {
+      @apply block;
+    }
+
+    .sidebar {
+      @apply fixed inset-y-0 left-0 z-40 w-[min(82vw,320px)];
+      transform: translateX(-100%);
+      transition: transform var(--sl-motion-base) var(--sl-motion-ease-standard);
+    }
+
+    .sidebar.is-open {
+      transform: translateX(0);
+    }
+
+    .layout-content {
+      @apply min-h-screen;
+    }
+
+    .admin-menu-toggle {
+      @apply inline-flex;
+    }
   }
 
   @media (max-width: 640px) {
     .topbar {
-      @apply flex-col items-start px-4 py-[18px];
+      @apply items-start px-4 py-[16px];
     }
 
     .topbar-right,
     .modal-actions,
     .login-forgot-actions {
       @apply w-full flex-col;
+    }
+
+    .topbar-right {
+      @apply items-stretch;
+    }
+
+    .topbar-role,
+    .topbar-name {
+      @apply self-start;
+    }
+
+    .topbar-action,
+    .topbar-logout,
+    .btn-primary {
+      @apply w-full;
     }
 
     .container {
@@ -455,6 +531,13 @@
     .stats,
     .form-grid {
       @apply grid-cols-1;
+    }
+
+    .card,
+    .form-card,
+    .sa-section,
+    .modal-card {
+      @apply rounded-[16px] px-4 py-4;
     }
 
     .login-card {

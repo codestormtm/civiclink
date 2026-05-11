@@ -4,15 +4,19 @@ const env = require("./env");
 let firebaseAdminApp = null;
 
 function isFirebaseAuthEnabled() {
-  return Boolean(env.firebase.enabled);
+  return Boolean(env.firebase.projectId);
 }
 
 function isFirebaseAdminConfigured() {
+  return isFirebaseAuthEnabled();
+}
+
+function hasFirebaseServiceAccount() {
   return Boolean(env.firebase.serviceAccount);
 }
 
 function getFirebaseAdminApp() {
-  if (!isFirebaseAuthEnabled() || !isFirebaseAdminConfigured()) {
+  if (!isFirebaseAuthEnabled()) {
     return null;
   }
 
@@ -21,7 +25,7 @@ function getFirebaseAdminApp() {
       projectId: env.firebase.projectId,
     };
 
-    if (env.firebase.serviceAccount) {
+    if (hasFirebaseServiceAccount()) {
       appOptions.credential = admin.credential.cert(env.firebase.serviceAccount);
     }
 
@@ -40,6 +44,10 @@ function getFirebaseAuth() {
 }
 
 function getFirebaseMessaging() {
+  if (!hasFirebaseServiceAccount()) {
+    return null;
+  }
+
   const app = getFirebaseAdminApp();
   return app ? admin.messaging(app) : null;
 }
@@ -57,6 +65,7 @@ async function verifyFirebaseIdToken(idToken) {
 module.exports = {
   getFirebaseAuth,
   getFirebaseMessaging,
+  hasFirebaseServiceAccount,
   isFirebaseAdminConfigured,
   isFirebaseAuthEnabled,
   verifyFirebaseIdToken,

@@ -7,7 +7,7 @@ const {
 } = require("../utils/notificationService");
 const { success, failure } = require("../utils/response");
 const { logComplaintStatusChange } = require("../utils/complaintHistory");
-const { ROOM_ADMINS, userRoom } = require("../utils/socketRooms");
+const { ROOM_ADMINS, ROOM_PUBLIC, userRoom } = require("../utils/socketRooms");
 
 const COMPLAINT_STATUSES = new Set([
   "SUBMITTED",
@@ -140,6 +140,12 @@ exports.createIssue = async (req, res) => {
 
     const io = req.app.get("io");
     io.to(ROOM_ADMINS).emit("new_issue", result.rows[0]);
+    io.to(ROOM_PUBLIC).emit("public_activity_updated", {
+      type: "new_issue",
+      complaint_id: result.rows[0]?.id,
+      department_id,
+      status: result.rows[0]?.status,
+    });
     emitRealtimeNotification(
       io,
       [ROOM_ADMINS],
@@ -287,6 +293,12 @@ exports.updateStatus = async (req, res) => {
 
     const io = req.app.get("io");
     io.to(ROOM_ADMINS).emit("status_updated", enrichedResult.rows[0]);
+    io.to(ROOM_PUBLIC).emit("public_activity_updated", {
+      type: "status_updated",
+      complaint_id: id,
+      department_id: enrichedResult.rows[0]?.department_id,
+      status,
+    });
     emitRealtimeNotification(
       io,
       [ROOM_ADMINS],

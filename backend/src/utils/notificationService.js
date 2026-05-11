@@ -2,6 +2,7 @@ const { randomUUID } = require("crypto");
 const { pool } = require("../config/db");
 const {
   getFirebaseMessaging,
+  hasFirebaseServiceAccount,
   isFirebaseAdminConfigured,
   isFirebaseAuthEnabled,
 } = require("../config/firebaseAdmin");
@@ -112,7 +113,12 @@ async function findActiveTokens({ userIds = [], roles = [], apps = [] }) {
 async function sendMobileNotification({ userIds = [], roles = [], apps = [], title, body, data = {} }) {
   try {
     if (!isFirebaseAuthEnabled() || !isFirebaseAdminConfigured()) {
-      logger.info(`Mobile push skipped; Firebase Admin is not configured: ${title}`);
+      logger.info(`Mobile push skipped; Firebase auth is not configured: ${title}`);
+      return { sent: 0, skipped: true };
+    }
+
+    if (!hasFirebaseServiceAccount()) {
+      logger.info(`Mobile push skipped; Firebase service account is not configured: ${title}`);
       return { sent: 0, skipped: true };
     }
 

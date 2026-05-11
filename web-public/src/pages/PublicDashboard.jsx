@@ -9,6 +9,7 @@ import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import api from "../api/api";
+import socket, { connectPublicSocket, disconnectCitizenSocket } from "../api/socket";
 import { CloseIcon, MenuIcon } from "../components/PublicIcons";
 
 const STATUS_COLORS = {
@@ -221,6 +222,57 @@ export default function PublicDashboard() {
     }
   });
 
+  const refreshLiveDashboard = useEffectEvent(() => {
+    setFilterLoading(true);
+    setFilterError("");
+
+    const mapRequest = api.get("/public/complaints/map", {
+      params: departmentParams(selectedDepartmentId, mapScope),
+    });
+    const comparisonRequest = api.get("/public/comparisons", {
+      params: departmentParams(selectedDepartmentId, comparisonScope),
+    });
+    const activityRequest = api.get("/public/recent-resolved", {
+      params: departmentParams(selectedDepartmentId, activityScope),
+    });
+
+    Promise.all([
+      api.get("/public/stats"),
+      api.get("/public/department-summary"),
+      Promise.allSettled([mapRequest, comparisonRequest, activityRequest]),
+    ])
+      .then(([statsRes, departmentSummaryRes, filterResults]) => {
+        const [mapResult, comparisonResult, activityResult] = filterResults;
+        const mapFailed = mapResult.status === "rejected";
+        const comparisonsFailed = comparisonResult.status === "rejected";
+        const activityFailed = activityResult.status === "rejected";
+        const activityItems = activityFailed ? [] : activityResult.value.data.data || [];
+
+        setStats(statsRes.data.data);
+        setDepartmentSummary(departmentSummaryRes.data.data || []);
+        setMapPoints(mapFailed ? [] : mapResult.value.data.data || []);
+        setComparisons(comparisonsFailed ? [] : comparisonResult.value.data.data || []);
+        setRecentResolved(activityItems);
+        setSelectedDepartmentSummary(
+          selectedDepartmentId === ALL_DEPARTMENTS
+            ? null
+            : buildDepartmentSnapshot(selectedDepartment, activityItems)
+        );
+
+        if (mapFailed || comparisonsFailed || activityFailed) {
+          setFilterError(
+            "Public activity panels could not be refreshed for the current department filter."
+          );
+        }
+      })
+      .catch(() => {
+        setFilterError("The live public dashboard refresh failed. The current data is still visible.");
+      })
+      .finally(() => {
+        setFilterLoading(false);
+      });
+  });
+
   useEffect(() => {
     let cancelled = false;
 
@@ -335,6 +387,26 @@ export default function PublicDashboard() {
       document.body.style.overflow = previousOverflow;
     };
   }, [mobileNavOpen]);
+
+  useEffect(() => {
+    let refreshTimeoutId = null;
+
+    const handlePublicActivityUpdated = () => {
+      window.clearTimeout(refreshTimeoutId);
+      refreshTimeoutId = window.setTimeout(() => {
+        refreshLiveDashboard();
+      }, 300);
+    };
+
+    connectPublicSocket();
+    socket.on("public_activity_updated", handlePublicActivityUpdated);
+
+    return () => {
+      window.clearTimeout(refreshTimeoutId);
+      socket.off("public_activity_updated", handlePublicActivityUpdated);
+      disconnectCitizenSocket();
+    };
+  }, []);
 
   function handleNavClick(event, sectionId) {
     event.preventDefault();

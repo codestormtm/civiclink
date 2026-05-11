@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const { pool } = require("../config/db");
 const env = require("../config/env");
 const {
+  hasFirebaseServiceAccount,
   isFirebaseAdminConfigured,
   isFirebaseAuthEnabled,
   verifyFirebaseIdToken,
@@ -456,6 +457,19 @@ exports.createFirebaseSession = async (req, res) => {
   } finally {
     client.release();
   }
+};
+
+exports.getFirebaseStatus = async (_req, res) => {
+  const firebaseAuthEnabled = isFirebaseAuthEnabled();
+  const firebaseAdminConfigured = isFirebaseAdminConfigured();
+  const firebaseServiceAccountConfigured = hasFirebaseServiceAccount();
+
+  return success(res, {
+    firebase_auth_enabled: firebaseAuthEnabled,
+    firebase_admin_configured: firebaseAdminConfigured,
+    firebase_service_account_configured: firebaseServiceAccountConfigured,
+    session_exchange_ready: firebaseAuthEnabled && firebaseAdminConfigured,
+  }, 200, "Firebase auth status");
 };
 
 exports.getCurrentSession = async (req, res) => {

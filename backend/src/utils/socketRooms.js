@@ -2,6 +2,7 @@ const ROLES = require("../constants/roles");
 
 const ROOM_ADMINS = "role:admins";
 const ROOM_SYSTEM_ADMINS = "role:system_admins";
+const ROOM_PUBLIC = "public:dashboard";
 
 function userRoom(userId) {
   return `user:${userId}`;
@@ -35,6 +36,7 @@ function attachSocketRooms(socket, user) {
 
 module.exports = {
   ROOM_ADMINS,
+  ROOM_PUBLIC,
   ROOM_SYSTEM_ADMINS,
   attachSocketRooms,
   departmentRoom,

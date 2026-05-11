@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import api from "../api/api";
 import ComplaintSubmissionSuccess from "../components/ComplaintSubmissionSuccess";
 import IntakeChat from "../components/IntakeChat";
-import { ArrowRightIcon, CheckIcon } from "../components/PublicIcons";
+import { ArrowRightIcon, CheckIcon, CloseIcon } from "../components/PublicIcons";
 import StructuredDraftPreview from "../components/StructuredDraftPreview";
 import { useCitizenI18n } from "../i18n";
 import { rememberTrackedComplaint } from "../utils/portalState";
 
-export default function GuidedReportPage({ language, onTrack }) {
+export default function GuidedReportPage({ language, onTrack, compact = false, onClose }) {
   const { t } = useCitizenI18n();
   const [sessionToken, setSessionToken] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -139,7 +139,12 @@ export default function GuidedReportPage({ language, onTrack }) {
 
   if (submitted) {
     return (
-      <div className="container guided-report-container guided-report-container-success">
+      <div className={`container guided-report-container guided-report-container-success ${compact ? "guided-report-container-compact" : ""}`}>
+        {compact ? (
+          <button type="button" className="guided-report-close" onClick={onClose} aria-label={t("common.close")}>
+            <CloseIcon size={18} />
+          </button>
+        ) : null}
         <ComplaintSubmissionSuccess
           complaint={submitted}
           title={t("guided.successTitle")}
@@ -153,7 +158,7 @@ export default function GuidedReportPage({ language, onTrack }) {
   }
 
   return (
-    <div className="container guided-report-container">
+    <div className={`container guided-report-container ${compact ? "guided-report-container-compact" : ""}`}>
       <div className="guided-report-header">
         <div className="guided-report-header-copy">
           <div>
@@ -161,6 +166,11 @@ export default function GuidedReportPage({ language, onTrack }) {
             <p className="guided-report-subtitle">{t("guided.subtitle")}</p>
           </div>
         </div>
+        {compact ? (
+          <button type="button" className="guided-report-close" onClick={onClose} aria-label={t("common.close")}>
+            <CloseIcon size={18} />
+          </button>
+        ) : null}
       </div>
 
       {error ? <div className="alert alert-error guided-report-error">{error}</div> : null}
@@ -176,6 +186,21 @@ export default function GuidedReportPage({ language, onTrack }) {
             inputDisabled={typing || !sessionToken || showPreview || showLocationPicker}
             locationPicker={showLocationPicker}
             onLocationPicked={handleLocationPicked}
+            hideComposer={showPreview}
+            inlineContent={showPreview && Object.keys(draft).length > 0 ? (
+              <StructuredDraftPreview
+                draft={draft}
+                onSubmit={handleSubmit}
+                onEdit={() => setShowPreview(false)}
+                submitting={submitting}
+                attachmentFile={attachmentFile}
+                onAttachmentChange={(nextFile) => {
+                  setAttachmentFile(nextFile);
+                  setAttachmentError("");
+                }}
+                attachmentError={attachmentError}
+              />
+            ) : null}
           />
         )}
       </div>
@@ -207,20 +232,6 @@ export default function GuidedReportPage({ language, onTrack }) {
         </div>
       ) : null}
 
-      {showPreview && Object.keys(draft).length > 0 ? (
-        <StructuredDraftPreview
-          draft={draft}
-          onSubmit={handleSubmit}
-          onEdit={() => setShowPreview(false)}
-          submitting={submitting}
-          attachmentFile={attachmentFile}
-          onAttachmentChange={(nextFile) => {
-            setAttachmentFile(nextFile);
-            setAttachmentError("");
-          }}
-          attachmentError={attachmentError}
-        />
-      ) : null}
     </div>
   );
 }

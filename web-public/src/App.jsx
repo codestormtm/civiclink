@@ -62,6 +62,7 @@ function App() {
   const [user, setUser] = useState(() => buildStoredUser());
   const [menu, setMenu] = useState(() => getInitialCitizenTab());
   const [language, setLanguage] = useState(() => getPreferredLanguage() || getStoredLanguage());
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
   const [toast, setToast] = useState(null);
   const [trackSelection, setTrackSelection] = useState("");
@@ -250,6 +251,7 @@ function App() {
   const handleMenuChange = (nextMenu) => {
     setMenu(nextMenu);
     setActiveCitizenTab(nextMenu);
+    setAiAssistantOpen(false);
     setAuthNoticeKey("");
     setSettingsState((current) => ({ ...current, success: "" }));
   };
@@ -349,6 +351,19 @@ function App() {
     };
   }, [bootState, language, openComplaintTracking, pushToast]);
 
+  useEffect(() => {
+    if (typeof document === "undefined" || !aiAssistantOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [aiAssistantOpen]);
+
   if (isPublicDashboardRoute) {
     return <PublicDashboard />;
   }
@@ -386,7 +401,12 @@ function App() {
             onLoggedOut={handleLoggedOut}
           >
             {menu === "track" ? <TrackComplaint externalComplaintId={trackSelection} /> : null}
-            {menu === "submit" ? <CitizenComplaintForm onOpenAi={() => handleMenuChange("guide")} onTrack={() => handleMenuChange("track")} /> : null}
+            {menu === "submit" ? (
+              <CitizenComplaintForm
+                onOpenAi={() => setAiAssistantOpen(true)}
+                onTrack={() => handleMenuChange("track")}
+              />
+            ) : null}
             {menu === "guide" ? <GuidedReportPage language={language} onTrack={() => handleMenuChange("track")} /> : null}
             {menu === "settings" ? (
               <CitizenSettings
@@ -401,6 +421,21 @@ function App() {
               />
             ) : null}
           </CitizenLayout>
+          {aiAssistantOpen ? (
+            <div className="guided-dialog-backdrop" onClick={() => setAiAssistantOpen(false)}>
+              <div className="guided-dialog" onClick={(event) => event.stopPropagation()}>
+                <GuidedReportPage
+                  language={language}
+                  compact
+                  onClose={() => setAiAssistantOpen(false)}
+                  onTrack={() => {
+                    setAiAssistantOpen(false);
+                    handleMenuChange("track");
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
           <CitizenToast toast={toast} onDismiss={() => setToast(null)} onOpen={openComplaintTracking} />
         </>
       ) : null}

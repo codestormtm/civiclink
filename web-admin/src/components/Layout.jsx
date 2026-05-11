@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Header from "./Header";
 
 export default function Layout({ children }) {
   const [menu, setMenu] = useState("dashboard");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const navItems = [
     { key: "dashboard", label: "Overview" },
@@ -13,9 +14,31 @@ export default function Layout({ children }) {
     { key: "reports", label: "Reports" },
   ];
 
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    if (drawerOpen) {
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [drawerOpen]);
+
+  const handleMenuSelect = (nextMenu) => {
+    setMenu(nextMenu);
+    setDrawerOpen(false);
+  };
+
   return (
     <div className="layout">
-      <div className="sidebar">
+      <div className={`sidebar-backdrop ${drawerOpen ? "is-open" : ""}`} onClick={() => setDrawerOpen(false)} />
+
+      <div className={`sidebar ${drawerOpen ? "is-open" : ""}`} onClick={(event) => event.stopPropagation()}>
         <div className="sidebar-brand">
           <div className="sidebar-brand-icon">C</div>
           <span>
@@ -26,19 +49,20 @@ export default function Layout({ children }) {
 
         <nav className="sidebar-nav">
           {navItems.map((item) => (
-            <div
+            <button
+              type="button"
               key={item.key}
               className={`sidebar-item ${menu === item.key ? "active" : ""}`}
-              onClick={() => setMenu(item.key)}
+              onClick={() => handleMenuSelect(item.key)}
             >
               {item.label}
-            </div>
+            </button>
           ))}
         </nav>
       </div>
 
       <div className="layout-content">
-        <Header />
+        <Header onToggleMenu={() => setDrawerOpen((value) => !value)} isMenuOpen={drawerOpen} />
         {children(menu)}
       </div>
     </div>

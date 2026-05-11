@@ -29,7 +29,7 @@ const {
   emitRealtimeNotification,
   notifyCitizenComplaintStatus,
 } = require("../utils/notificationService");
-const { ROOM_ADMINS, userRoom } = require("../utils/socketRooms");
+const { ROOM_ADMINS, ROOM_PUBLIC, userRoom } = require("../utils/socketRooms");
 
 // GET /api/worker/assignments
 exports.getMyAssignments = async (req, res) => {
@@ -232,6 +232,11 @@ exports.updateMyAssignmentStatus = async (req, res) => {
       };
       io.to(ROOM_ADMINS).emit("status_updated", eventPayload);
       io.to(userRoom(workerUserId)).emit("status_updated", eventPayload);
+      io.to(ROOM_PUBLIC).emit("public_activity_updated", {
+        type: "status_updated",
+        complaint_id: assignment.complaint_id,
+        status: complaintStatus,
+      });
       emitRealtimeNotification(
         io,
         [ROOM_ADMINS],

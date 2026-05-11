@@ -34,7 +34,16 @@ function TypingIndicator() {
   );
 }
 
-export default function IntakeChat({ messages, onSend, typing, inputDisabled, locationPicker, onLocationPicked }) {
+export default function IntakeChat({
+  messages,
+  onSend,
+  typing,
+  inputDisabled,
+  locationPicker,
+  onLocationPicked,
+  inlineContent = null,
+  hideComposer = false,
+}) {
   const { t } = useCitizenI18n();
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -73,11 +82,13 @@ export default function IntakeChat({ messages, onSend, typing, inputDisabled, lo
             <LocationPickerCard onLocationPicked={onLocationPicked} />
           </div>
         ) : null}
+        {inlineContent ? <div className="intake-inline-content">{inlineContent}</div> : null}
         {typing ? <TypingIndicator /> : null}
         <div ref={bottomRef} />
       </div>
 
-      <div className="intake-chat-footer">
+      {!hideComposer ? (
+        <div className="intake-chat-footer">
         {locationPicker ? (
           <div className="intake-chat-hint">{t("chat.locationHint")}</div>
         ) : null}
@@ -97,7 +108,8 @@ export default function IntakeChat({ messages, onSend, typing, inputDisabled, lo
         >
           <SendIcon size={18} />
         </button>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
