@@ -382,6 +382,10 @@ const env = {
     projectId: firebaseProjectId,
     serviceAccount: firebaseServiceAccount,
   },
+
+  redis: {
+    url: process.env.REDIS_URL || (runningInDocker ? "redis://redis:6379" : "redis://localhost:6379"),
+  },
 };
 
 if (isNaN(env.port)) {

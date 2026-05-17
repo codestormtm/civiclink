@@ -74,6 +74,7 @@ CREATE TABLE worker_profiles (
   full_name VARCHAR(150) NOT NULL,
   name_initials VARCHAR(150),
   nic_number VARCHAR(50) NOT NULL UNIQUE,
+  local_call_number VARCHAR(3) NOT NULL,
   address TEXT,
   designation VARCHAR(150),
   employment_type VARCHAR(50),
@@ -91,6 +92,9 @@ CREATE TABLE worker_profiles (
   UNIQUE (user_id, department_id),
   CONSTRAINT worker_profiles_employment_status_check CHECK (
     employment_status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED')
+  ),
+  CONSTRAINT worker_profiles_local_call_number_format_check CHECK (
+    local_call_number ~ '^[0-9]{3}$'
   )
 );
 
@@ -202,6 +206,9 @@ CREATE UNIQUE INDEX idx_users_firebase_uid
 
 CREATE INDEX idx_worker_profiles_department_id
   ON worker_profiles(department_id);
+
+CREATE UNIQUE INDEX idx_worker_profiles_department_local_call_number
+  ON worker_profiles(department_id, local_call_number);
 
 CREATE INDEX idx_complaints_department_id
   ON complaints(department_id);

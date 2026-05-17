@@ -119,6 +119,7 @@ exports.getFilteredComplaints = async (req, res) => {
         dit.id AS issue_type_id,
         dit.name AS issue_type_name,
         reporter.name AS reporter_name,
+        latest_assignment.id AS assignment_id,
         latest_assignment.worker_user_id AS assigned_worker_id,
         assignee.name AS assigned_worker_name,
         latest_assignment.status AS assignment_status
@@ -126,7 +127,7 @@ exports.getFilteredComplaints = async (req, res) => {
       JOIN department_issue_types dit ON dit.id = c.issue_type_id
       JOIN users reporter ON reporter.id = c.reporter_user_id
       LEFT JOIN LATERAL (
-        SELECT ca.worker_user_id, ca.status, ca.assigned_at
+        SELECT ca.id, ca.worker_user_id, ca.status, ca.assigned_at
         FROM complaint_assignments ca
         WHERE ca.complaint_id = c.id
         ORDER BY ca.assigned_at DESC
@@ -186,6 +187,7 @@ exports.getComplaintById = async (req, res) => {
          d.name AS department_name,
          dit.name AS issue_type_name,
          reporter.name AS reporter_name,
+         latest_assignment.id AS assignment_id,
          latest_assignment.worker_user_id AS assigned_worker_id,
          assignee.name AS assigned_worker_name,
          latest_assignment.status AS assignment_status,
@@ -195,7 +197,7 @@ exports.getComplaintById = async (req, res) => {
        JOIN department_issue_types dit ON dit.id = c.issue_type_id
        JOIN users reporter ON reporter.id = c.reporter_user_id
        LEFT JOIN LATERAL (
-         SELECT ca.worker_user_id, ca.status, ca.assigned_at
+         SELECT ca.id, ca.worker_user_id, ca.status, ca.assigned_at
          FROM complaint_assignments ca
          WHERE ca.complaint_id = c.id
          ORDER BY ca.assigned_at DESC

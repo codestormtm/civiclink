@@ -8,12 +8,15 @@ const env = require("./config/env");
 const { isAllowedOrigin } = require("./utils/originSecurity");
 const { ROOM_PUBLIC, attachSocketRooms } = require("./utils/socketRooms");
 const { pool, checkDatabaseConnection } = require("./config/db");
+const { connectRedis, disconnectRedis } = require("./config/redis");
 const { ensureBucketExists } = require("./config/minio");
 const { ensureFirebaseAuthSchema } = require("./services/firebaseAuthSchemaService");
 const { ensureMonitoringSchema, startMonitoringLoop } = require("./services/monitoringService");
 const { ensurePasswordResetSchema } = require("./services/passwordResetService");
 const { ensureUserPreferencesSchema } = require("./services/userPreferencesSchemaService");
 const { ensureMobileDeviceTokenSchema } = require("./services/mobileDeviceTokenSchemaService");
+const { ensureCommunicationSchema } = require("./services/communicationSchemaService");
+const { attachCommunicationSocket } = require("./realtime/communicationSocket");
 const logger = require("./utils/logger");
 
 const server = http.createServer(app);
@@ -62,6 +65,8 @@ io.on("connection", (socket) => {
   });
 });
 
+attachCommunicationSocket(io);
+
 function listen(port) {
   return new Promise((resolve, reject) => {
     const handleError = (err) => {
@@ -87,6 +92,9 @@ async function start() {
     await checkDatabaseConnection();
     logger.info("Database connected");
 
+    await connectRedis();
+    logger.info(`Redis connected: ${env.redis.url}`);
+
     await ensureBucketExists();
     logger.info(`MinIO bucket ready: ${env.minio.bucket}`);
   } catch (err) {
@@ -106,6 +114,7 @@ async function start() {
     await ensurePasswordResetSchema();
     await ensureUserPreferencesSchema();
     await ensureMobileDeviceTokenSchema();
+    await ensureCommunicationSchema();
     await listen(env.port);
 
     if (env.monitoring.enabled) {
@@ -128,6 +137,7 @@ async function start() {
 function shutdown() {
   logger.info("Shutting down...");
   server.close(async () => {
+    await disconnectRedis();
     await pool.end();
     logger.info("Server and DB pool closed");
     process.exit(0);

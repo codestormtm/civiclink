@@ -29,6 +29,8 @@ export default function WorkerDashboard({
   openTask,
   onLogout,
   onOpenSettings,
+  onOpenCommunication,
+  communicationUnreadCount,
   notificationPermission,
   onEnableNotifications,
   syncState,
@@ -82,6 +84,8 @@ export default function WorkerDashboard({
         notificationPermission={notificationPermission}
         onEnableNotifications={onEnableNotifications}
         onOpenSettings={onOpenSettings}
+        onOpenCommunication={onOpenCommunication}
+        communicationUnreadCount={communicationUnreadCount}
         onLogout={onLogout}
       />
 

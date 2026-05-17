@@ -10,6 +10,8 @@ export default function WorkerSettings({
   onLanguageChange,
   onSave,
   onBack,
+  onOpenCommunication,
+  communicationUnreadCount,
   onLogout,
   notificationPermission,
   onEnableNotifications,
@@ -45,6 +47,8 @@ export default function WorkerSettings({
         user={user}
         notificationPermission={notificationPermission}
         onEnableNotifications={onEnableNotifications}
+        onOpenCommunication={onOpenCommunication}
+        communicationUnreadCount={communicationUnreadCount}
         onBack={onBack}
         onLogout={onLogout}
       />

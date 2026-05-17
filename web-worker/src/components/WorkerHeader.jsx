@@ -1,4 +1,4 @@
-import { ArrowLeft, Bell, BellRing, LogOut, Menu, Settings2, X } from "lucide-react";
+import { ArrowLeft, Bell, BellRing, LogOut, Menu, MessageCircle, Settings2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useWorkerI18n } from "../i18n";
 import StatusBadge from "./StatusBadge";
@@ -24,6 +24,8 @@ export default function WorkerHeader({
   notificationPermission,
   onEnableNotifications,
   onBack,
+  onOpenCommunication,
+  communicationUnreadCount = 0,
   onOpenSettings,
   onLogout,
   status,
@@ -86,6 +88,23 @@ export default function WorkerHeader({
 
         <div className={`worker-header-actions ${menuOpen ? "is-open" : ""}`}>
           {status ? <StatusBadge status={status} /> : null}
+
+          {onOpenCommunication ? (
+            <button
+              type="button"
+              className="worker-secondary-btn worker-btn-with-icon"
+              onClick={() => {
+                closeMenu();
+                onOpenCommunication();
+              }}
+            >
+              <MessageCircle size={18} aria-hidden="true" />
+              <span>Chat / Call Admin</span>
+              {communicationUnreadCount > 0 ? (
+                <span className="worker-chat-badge">{communicationUnreadCount}</span>
+              ) : null}
+            </button>
+          ) : null}
 
           <button
             type="button"

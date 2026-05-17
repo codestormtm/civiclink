@@ -15,6 +15,7 @@ const workerAssignmentRoutes = require("./routes/workerAssignmentRoutes");
 const intakeRoutes = require("./routes/intakeRoutes");
 const deptAdminRoutes = require("./routes/deptAdminRoutes");
 const mobileRoutes = require("./routes/mobileRoutes");
+const communicationRoutes = require("./routes/communicationRoutes");
 
 const requestLogger = require("./middleware/requestLogger");
 const notFound = require("./middleware/notFoundMiddleware");
@@ -53,6 +54,7 @@ app.use("/api/worker", workerAssignmentRoutes);
 app.use("/api/intake", intakeRoutes);
 app.use("/api/dept-admin", deptAdminRoutes);
 app.use("/api/mobile", mobileRoutes);
+app.use("/api/communication", communicationRoutes);
 
 app.get("/", (_req, res) => res.send("CivicLink API Running"));
 

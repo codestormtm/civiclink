@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/api";
+import CommunicationPanel from "../communication/CommunicationPanel";
 import { getDepartment } from "../utils/auth";
 import { printHtmlDocument } from "../utils/print";
 import { buildTerminationLetterPrintHtml } from "../utils/printTemplates";
@@ -14,7 +15,27 @@ const EMPTY_REMOVAL_FORM = {
   property_return_checklist: "",
 };
 
-export default function Workers() {
+function normalizeLocalNumber(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.padStart(3, "0").slice(-3);
+}
+
+function getNextLocalNumber(workers) {
+  const used = new Set(workers.map((worker) => worker.local_call_number).filter(Boolean));
+  for (let value = 1; value <= 999; value += 1) {
+    const candidate = String(value).padStart(3, "0");
+    if (!used.has(candidate)) return candidate;
+  }
+  return "";
+}
+
+export default function Workers({
+  communicationUnreadByWorker = {},
+  onCommunicationOpen = () => {},
+  pendingIncomingCall = null,
+  onPendingIncomingCallOpen = () => {},
+}) {
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -33,6 +54,8 @@ export default function Workers() {
   const [removalForm, setRemovalForm] = useState(EMPTY_REMOVAL_FORM);
   const [removing, setRemoving] = useState(false);
   const [removalError, setRemovalError] = useState("");
+  const [dialNumber, setDialNumber] = useState("");
+  const [communicationTarget, setCommunicationTarget] = useState(null);
 
   const field = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
   const editField = (key) => (e) => setEditForm((f) => ({ ...f, [key]: e.target.value }));
@@ -57,6 +80,21 @@ export default function Workers() {
   useEffect(() => {
     fetchWorkers();
   }, []);
+
+  useEffect(() => {
+    if (!pendingIncomingCall?.conversation) return;
+
+    const conversation = pendingIncomingCall.conversation;
+    setCommunicationTarget({
+      workerId: conversation.worker_user_id,
+      localCallNumber: conversation.local_call_number,
+      title: conversation.worker_name || `Worker ${conversation.local_call_number || ""}`,
+      peerName: conversation.worker_name || "Worker",
+      initialIncomingCall: pendingIncomingCall,
+    });
+    onCommunicationOpen(conversation.worker_user_id);
+    onPendingIncomingCallOpen();
+  }, [onCommunicationOpen, onPendingIncomingCallOpen, pendingIncomingCall]);
 
   async function handleSubmit() {
     if (!form.full_name || !form.email || !form.password || !form.nic_number) {
@@ -90,8 +128,9 @@ export default function Workers() {
   function openEdit(worker) {
     setRemovingId(null);
     setEditingId(worker.id);
-    setEditForm({
+      setEditForm({
       full_name: worker.full_name || worker.name || "",
+      local_call_number: worker.local_call_number || "",
       name_initials: worker.name_initials || "",
       designation: worker.designation || "",
       employment_type: worker.employment_type || "",
@@ -104,6 +143,38 @@ export default function Workers() {
       bank_name: worker.bank_name || "",
       account_number: worker.account_number || "",
       iban: worker.iban || "",
+    });
+  }
+
+  function openCommunicationForWorker(worker) {
+    if (!worker.local_call_number) {
+      showToast("error", "This worker does not have a local call number yet.");
+      return;
+    }
+
+    onCommunicationOpen(worker.id);
+    setCommunicationTarget({
+      workerId: worker.id,
+      localCallNumber: worker.local_call_number,
+      title: worker.full_name || worker.name || `Worker ${worker.local_call_number}`,
+      peerName: worker.full_name || worker.name || "Worker",
+    });
+  }
+
+  function openDialedWorker() {
+    const localNumber = normalizeLocalNumber(dialNumber);
+    if (!localNumber) {
+      showToast("error", "Enter a worker local number like 001.");
+      return;
+    }
+
+    const worker = workers.find((item) => item.local_call_number === localNumber);
+    onCommunicationOpen(worker?.id);
+    setCommunicationTarget({
+      workerId: worker?.id || null,
+      localCallNumber: localNumber,
+      title: worker?.full_name || worker?.name || `Worker ${localNumber}`,
+      peerName: worker?.full_name || worker?.name || `Worker ${localNumber}`,
     });
   }
 
@@ -265,7 +336,16 @@ export default function Workers() {
         <button
           className="btn-primary"
           onClick={() => {
-            setShowForm((v) => !v);
+            setShowForm((v) => {
+              const nextVisible = !v;
+              if (nextVisible) {
+                setForm({
+                  ...EMPTY_FORM,
+                  local_call_number: getNextLocalNumber(workers),
+                });
+              }
+              return nextVisible;
+            });
             setToast(null);
             setEditingId(null);
             setRemovingId(null);
@@ -276,6 +356,34 @@ export default function Workers() {
       </div>
 
       {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+
+      <div className="form-card" style={{ marginBottom: 24 }}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 12 }}>
+          Worker Local Call
+        </p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            value={dialNumber}
+            onChange={(event) => setDialNumber(event.target.value.replace(/\D/g, "").slice(0, 3))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") openDialedWorker();
+            }}
+            placeholder="Dial 001"
+            style={{ ...inputStyle, width: 160, fontSize: 16, fontWeight: 800, letterSpacing: 0 }}
+          />
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={openDialedWorker}
+            style={{ padding: "10px 18px" }}
+          >
+            Open Chat / Call
+          </button>
+          <span style={{ fontSize: 12, color: "#6b7280" }}>
+            Use the worker local number, for example 001.
+          </span>
+        </div>
+      </div>
 
       {generatedLetter && (
         <div
@@ -377,6 +485,17 @@ export default function Workers() {
             <div className="form-group">
               <label>Password *</label>
               <input type="password" placeholder="Password" value={form.password || ""} onChange={field("password")} />
+            </div>
+            <div className="form-group">
+              <label>Local Call Number *</label>
+              <input
+                placeholder="001"
+                value={form.local_call_number || ""}
+                onChange={(event) => setForm((current) => ({
+                  ...current,
+                  local_call_number: event.target.value.replace(/\D/g, "").slice(0, 3),
+                }))}
+              />
             </div>
             <div className="form-group">
               <label>NIC Number *</label>
@@ -482,6 +601,9 @@ export default function Workers() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                   <h3 style={{ margin: 0 }}>{worker.full_name || worker.name}</h3>
+                  {worker.local_call_number ? (
+                    <span className="badge assigned">Local {worker.local_call_number}</span>
+                  ) : null}
                   <span className={`badge ${statusColor(worker.employment_status)}`}>
                     {worker.employment_status}
                   </span>
@@ -504,6 +626,28 @@ export default function Workers() {
               </div>
 
               <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={() => openCommunicationForWorker(worker)}
+                  style={{
+                    padding: "5px 14px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: "#fff7ed",
+                    color: "#9a3412",
+                    border: "1px solid #fdba74",
+                    borderRadius: 7,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    position: "relative",
+                  }}
+                >
+                  Chat / Call
+                  {communicationUnreadByWorker[worker.id] > 0 ? (
+                    <span className="communication-button-badge">
+                      {communicationUnreadByWorker[worker.id]}
+                    </span>
+                  ) : null}
+                </button>
                 <button
                   onClick={() => (isEditing ? setEditingId(null) : openEdit(worker))}
                   style={{
@@ -563,6 +707,18 @@ export default function Workers() {
                   <div>
                     <label style={labelStyle}>Full Name *</label>
                     <input style={inputStyle} value={editForm.full_name} onChange={editField("full_name")} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Local Call Number *</label>
+                    <input
+                      style={inputStyle}
+                      value={editForm.local_call_number}
+                      onChange={(event) => setEditForm((current) => ({
+                        ...current,
+                        local_call_number: event.target.value.replace(/\D/g, "").slice(0, 3),
+                      }))}
+                      placeholder="001"
+                    />
                   </div>
                   <div>
                     <label style={labelStyle}>Name Initials</label>
@@ -857,6 +1013,22 @@ export default function Workers() {
           </div>
         );
       })}
+
+      {communicationTarget ? (
+        <CommunicationPanel
+          direct
+          localCallNumber={communicationTarget.localCallNumber}
+          title={communicationTarget.title}
+          peerName={communicationTarget.peerName}
+          initialIncomingCall={communicationTarget.initialIncomingCall}
+          onConversationReady={(conversation) => {
+            if (conversation.worker_user_id) {
+              onCommunicationOpen(conversation.worker_user_id);
+            }
+          }}
+          onClose={() => setCommunicationTarget(null)}
+        />
+      ) : null}
     </div>
   );
 }

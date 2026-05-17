@@ -31,6 +31,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-admin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-password123}
       MINIO_BUCKET: ${MINIO_BUCKET:-civiclink}
+      REDIS_URL: redis://redis:6379
     ports:
       - "${BACKEND_PORT:-5002}:5001"
     depends_on:

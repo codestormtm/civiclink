@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import api from "./api/api";
 import socket, { connectWorkerSocket, disconnectWorkerSocket, syncSocketAuth } from "./api/socket";
 import { WorkerI18nProvider, translate } from "./i18n";
@@ -8,6 +8,13 @@ import WorkerDashboard from "./pages/WorkerDashboard";
 import WorkerLanguageSetup from "./pages/WorkerLanguageSetup";
 import WorkerSettings from "./pages/WorkerSettings";
 import WorkerTaskDetail from "./pages/WorkerTaskDetail";
+import CommunicationPanel from "./communication/CommunicationPanel";
+import {
+  decryptText,
+  deriveLocalConversationKey,
+  saveConversationKey,
+  saveMessage,
+} from "./communication/communicationStore";
 import {
   clearAuth,
   getDepartment,
@@ -56,6 +63,9 @@ export default function App() {
   const [language, setLanguage] = useState(() => getPreferredLanguage() || getStoredLanguage());
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermission());
   const [toast, setToast] = useState(null);
+  const [communicationTarget, setCommunicationTarget] = useState(null);
+  const [communicationUnreadCount, setCommunicationUnreadCount] = useState(0);
+  const communicationRingtoneRef = useRef(null);
   const [syncState, setSyncState] = useState(() => ({
     ...getWorkerQueueSnapshot(),
     syncing: false,
@@ -74,6 +84,21 @@ export default function App() {
   const openTask = useCallback((taskId) => {
     setSelectedTaskId(taskId);
     setToast(null);
+  }, []);
+
+  const openWorkerCommunication = useCallback(async () => {
+    setCommunicationTarget({
+      direct: true,
+      title: "Department admin",
+      peerName: "Department admin",
+    });
+    setCommunicationUnreadCount(0);
+  }, [pushToast]);
+
+  const playCommunicationSound = useCallback((soundPath) => {
+    const audio = new Audio(soundPath);
+    audio.play().catch(() => {});
+    return audio;
   }, []);
 
   const applySelectedLanguage = useCallback((nextLanguage) => {
@@ -236,14 +261,112 @@ export default function App() {
       });
     };
 
+    const handleCommunicationMessage = async (payload) => {
+      if (!payload?.conversation_id || !payload?.conversation) return;
+
+      try {
+        const key = await deriveLocalConversationKey(payload.conversation);
+        await saveConversationKey(payload.conversation_id, key);
+        const plaintext = await decryptText(key, payload.ciphertext, payload.iv);
+        await saveMessage({
+          ...payload,
+          direction: "inbound",
+          status: "delivered",
+          plaintext,
+        });
+        socket.emit("conversation:delivered", {
+          conversation_id: payload.conversation_id,
+          client_message_id: payload.client_message_id,
+        });
+
+        if (!communicationTarget || communicationTarget.conversationId !== payload.conversation_id) {
+          setCommunicationUnreadCount((count) => count + 1);
+        }
+
+        pushToast({
+          title: "New admin message",
+          text: plaintext,
+        });
+        playCommunicationSound("/sounds/smooth_notification.mp3");
+
+        if (typeof window !== "undefined" && "Notification" in window && window.Notification.permission === "granted") {
+          new window.Notification("CivicLink message", {
+            body: plaintext,
+            tag: `communication-${payload.conversation_id}`,
+          });
+        }
+      } catch {
+        pushToast({
+          title: "New admin message",
+          text: "Open chat to read the encrypted message.",
+        });
+      }
+    };
+
+    const handleIncomingCall = (payload) => {
+      if (!payload?.conversation) return;
+
+      setCommunicationUnreadCount((count) => count + 1);
+      communicationRingtoneRef.current?.pause();
+      const ringtone = playCommunicationSound("/sounds/soft_ringtone.mp3");
+      if (ringtone) {
+        ringtone.loop = true;
+        communicationRingtoneRef.current = ringtone;
+        window.setTimeout(() => {
+          ringtone.pause();
+          ringtone.currentTime = 0;
+          if (communicationRingtoneRef.current === ringtone) {
+            communicationRingtoneRef.current = null;
+          }
+        }, 15000);
+      }
+
+      pushToast({
+        title: "Incoming admin call",
+        text: "Open Chat / Call Admin to answer.",
+      });
+      setCommunicationTarget((current) => current || {
+        direct: true,
+        title: payload.conversation?.admin_name || "Department admin",
+        peerName: payload.conversation?.admin_name || "Department admin",
+        conversationId: payload.conversation_id,
+        initialIncomingCall: payload,
+      });
+
+      if (typeof window !== "undefined" && "Notification" in window && window.Notification.permission === "granted") {
+        new window.Notification("Incoming CivicLink call", {
+          body: "Department admin is calling.",
+          tag: `call-${payload.call_id || payload.conversation_id}`,
+        });
+      }
+    };
+
+    const stopCommunicationRingtone = () => {
+      communicationRingtoneRef.current?.pause();
+      if (communicationRingtoneRef.current) {
+        communicationRingtoneRef.current.currentTime = 0;
+        communicationRingtoneRef.current = null;
+      }
+    };
+
     socket.on("task_assigned", handleTaskAssigned);
     socket.on("status_updated", handleStatusUpdated);
+    socket.on("conversation:message", handleCommunicationMessage);
+    socket.on("call:request", handleIncomingCall);
+    socket.on("call:accept", stopCommunicationRingtone);
+    socket.on("call:reject", stopCommunicationRingtone);
+    socket.on("call:end", stopCommunicationRingtone);
 
     return () => {
       socket.off("task_assigned", handleTaskAssigned);
       socket.off("status_updated", handleStatusUpdated);
+      socket.off("conversation:message", handleCommunicationMessage);
+      socket.off("call:request", handleIncomingCall);
+      socket.off("call:accept", stopCommunicationRingtone);
+      socket.off("call:reject", stopCommunicationRingtone);
+      socket.off("call:end", stopCommunicationRingtone);
     };
-  }, [bootState, language, openTask, pushToast]);
+  }, [bootState, communicationTarget, language, openTask, playCommunicationSound, pushToast]);
 
   const handleLoggedIn = (sessionPayload) => {
     const nextUser = {
@@ -384,6 +507,8 @@ export default function App() {
             onLanguageChange={applySelectedLanguage}
             onSave={handleSavePreferredLanguage}
             onBack={() => setActiveView("dashboard")}
+            onOpenCommunication={openWorkerCommunication}
+            communicationUnreadCount={communicationUnreadCount}
             onLogout={handleLogout}
             notificationPermission={notificationPermission}
             onEnableNotifications={handleEnableNotifications}
@@ -400,6 +525,8 @@ export default function App() {
             goBack={() => setSelectedTaskId(null)}
             onLogout={handleLogout}
             onOpenSettings={() => setActiveView("settings")}
+            onOpenCommunication={openWorkerCommunication}
+            communicationUnreadCount={communicationUnreadCount}
             notificationPermission={notificationPermission}
             onEnableNotifications={handleEnableNotifications}
             syncState={syncState}
@@ -417,6 +544,8 @@ export default function App() {
             openTask={openTask}
             onLogout={handleLogout}
             onOpenSettings={() => setActiveView("settings")}
+            onOpenCommunication={openWorkerCommunication}
+            communicationUnreadCount={communicationUnreadCount}
             notificationPermission={notificationPermission}
             onEnableNotifications={handleEnableNotifications}
             syncState={syncState}
@@ -424,6 +553,22 @@ export default function App() {
           />
           <WorkerToast toast={toast} onDismiss={() => setToast(null)} onOpen={openTask} />
         </>
+      ) : null}
+
+      {bootState === "authed" && communicationTarget ? (
+        <CommunicationPanel
+          direct={communicationTarget.direct}
+          title={communicationTarget.title || "Department admin"}
+          peerName={communicationTarget.peerName || "Department admin"}
+          initialIncomingCall={communicationTarget.initialIncomingCall}
+          onConversationReady={(conversation) => {
+            setCommunicationTarget((current) => current ? {
+              ...current,
+              conversationId: conversation.id,
+            } : current);
+          }}
+          onClose={() => setCommunicationTarget(null)}
+        />
       ) : null}
     </WorkerI18nProvider>
   );

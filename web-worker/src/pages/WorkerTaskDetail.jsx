@@ -66,6 +66,8 @@ export default function WorkerTaskDetail({
   goBack,
   onLogout,
   onOpenSettings,
+  onOpenCommunication,
+  communicationUnreadCount,
   notificationPermission,
   onEnableNotifications,
   syncState,
@@ -234,6 +236,8 @@ export default function WorkerTaskDetail({
           notificationPermission={notificationPermission}
           onEnableNotifications={onEnableNotifications}
           onOpenSettings={onOpenSettings}
+          onOpenCommunication={onOpenCommunication}
+          communicationUnreadCount={communicationUnreadCount}
           onBack={goBack}
           onLogout={onLogout}
         />
@@ -275,6 +279,8 @@ export default function WorkerTaskDetail({
         notificationPermission={notificationPermission}
         onEnableNotifications={onEnableNotifications}
         onOpenSettings={onOpenSettings}
+        onOpenCommunication={onOpenCommunication}
+        communicationUnreadCount={communicationUnreadCount}
         onBack={goBack}
         onLogout={onLogout}
         status={assignment.complaint_status}
@@ -556,6 +562,7 @@ export default function WorkerTaskDetail({
           </div>
         </div>
       ) : null}
+
     </div>
   );
 }

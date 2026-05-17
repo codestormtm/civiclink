@@ -538,3 +538,448 @@
     }
   }
 }
+
+.communication-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(15 23 42 / 0.38);
+}
+
+.communication-panel {
+  width: min(520px, 100%);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  box-shadow: -16px 0 40px rgb(15 23 42 / 0.2);
+}
+
+.communication-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.communication-header h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  color: #111827;
+}
+
+.communication-header p,
+.communication-kicker {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.communication-kicker {
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.communication-icon-btn,
+.communication-toolbar button,
+.communication-compose button,
+.communication-file-btn,
+.communication-call-card button {
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 11px;
+}
+
+.communication-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.communication-toolbar span,
+.communication-typing {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.communication-file-btn input {
+  display: none;
+}
+
+.communication-call-card {
+  margin: 12px 20px 0;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+}
+
+.communication-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+  background: #f8fafc;
+}
+
+.communication-empty {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.communication-message {
+  max-width: 82%;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.communication-message.is-mine {
+  margin-left: auto;
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+
+.communication-message p {
+  margin: 0 0 5px;
+  color: #0f172a;
+  white-space: pre-wrap;
+}
+
+.communication-message span {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.communication-typing {
+  padding: 0 20px 8px;
+  background: #f8fafc;
+}
+
+.communication-compose {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.communication-compose textarea {
+  min-height: 54px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+@media (max-width: 640px) {
+  .communication-compose {
+    grid-template-columns: 1fr;
+  }
+}
+
+.communication-panel {
+  width: min(960px, 100%);
+  background: #0b141a;
+  color: #e9edef;
+}
+
+.communication-header {
+  align-items: center;
+  background: #111b21;
+  border-bottom-color: #1f2c33;
+}
+
+.communication-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: linear-gradient(135deg, #0f766e, #8f123f);
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.communication-title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.communication-header h2 {
+  color: #f8fafc;
+  font-size: 18px;
+}
+
+.communication-header p {
+  color: #aebac1;
+}
+
+.communication-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.communication-icon-btn,
+.communication-toolbar button,
+.communication-compose button,
+.communication-file-btn,
+.communication-call-card button {
+  border-color: #2a3942;
+  background: #202c33;
+  color: #e9edef;
+}
+
+.communication-icon-btn:disabled,
+.communication-toolbar button:disabled {
+  opacity: 0.55;
+}
+
+.communication-toolbar {
+  background: #111b21;
+  border-bottom-color: #1f2c33;
+}
+
+.communication-toolbar span {
+  color: #8696a0;
+}
+
+.communication-call-card {
+  background: #0b3b34;
+  border-color: #1f6f61;
+  color: #e9edef;
+}
+
+.communication-messages {
+  background:
+    radial-gradient(circle at 12px 12px, rgb(255 255 255 / 0.05) 1px, transparent 1.5px),
+    radial-gradient(circle at 44px 38px, rgb(255 255 255 / 0.035) 1px, transparent 1.5px),
+    #0b141a;
+  background-size: 64px 64px;
+  padding: 20px 28px;
+}
+
+.communication-day-pill {
+  width: fit-content;
+  margin: 0 auto 18px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #182229;
+  color: #aebac1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.communication-empty {
+  color: #8696a0;
+  text-align: center;
+}
+
+.communication-message {
+  max-width: min(68%, 520px);
+  background: #202c33;
+  border: 0;
+  color: #e9edef;
+  border-radius: 7px;
+  padding: 7px 9px 5px;
+}
+
+.communication-message.is-mine {
+  background: #005c4b;
+  border: 0;
+}
+
+.communication-message p {
+  color: #f8fafc;
+  margin-bottom: 3px;
+}
+
+.communication-message-meta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  color: #aebac1;
+}
+
+.communication-ticks {
+  letter-spacing: -3px;
+  color: #aebac1;
+  font-weight: 900;
+}
+
+.communication-ticks.is-seen {
+  color: #53bdeb;
+}
+
+.communication-status-text {
+  margin-left: 4px;
+  font-size: 10px;
+  color: #aebac1;
+}
+
+.communication-compose {
+  grid-template-columns: auto auto 1fr auto auto;
+  align-items: center;
+  background: #202c33;
+  border-top-color: #1f2c33;
+}
+
+.communication-compose textarea {
+  min-height: 46px;
+  max-height: 130px;
+  border: 0;
+  border-radius: 24px;
+  background: #2a3942;
+  color: #e9edef;
+}
+
+.communication-compose textarea::placeholder {
+  color: #8696a0;
+}
+
+.communication-round-btn {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  padding: 0;
+}
+
+/* CivicLink communication theme overrides */
+.communication-panel {
+  width: min(760px, 100%);
+  background: #fffaf3;
+  color: #2b2530;
+}
+
+.communication-header,
+.communication-toolbar,
+.communication-compose {
+  background: #fffaf3;
+  border-color: #ead8c7;
+}
+
+.communication-header h2 {
+  color: #211824;
+}
+
+.communication-header p,
+.communication-toolbar span {
+  color: #7a6d80;
+}
+
+.communication-icon-btn,
+.communication-toolbar button,
+.communication-compose button,
+.communication-file-btn,
+.communication-call-card button {
+  border-color: #e2cdb7;
+  background: #fff7e8;
+  color: #2b2530;
+}
+
+.communication-messages {
+  background: #fffaf3;
+}
+
+.communication-day-pill,
+.communication-call-card {
+  background: #fff1d6;
+  border-color: #eab85f;
+  color: #7a4b00;
+}
+
+.communication-message {
+  width: fit-content;
+  max-width: min(72%, 560px);
+  min-width: 54px;
+  background: #ffffff;
+  border: 1px solid #ead8c7;
+  color: #2b2530;
+  border-radius: 12px;
+  padding: 8px 11px 6px;
+}
+
+.communication-message.is-mine {
+  width: fit-content;
+  margin-left: auto;
+  background: #fbe7b2;
+  border: 1px solid #f0c36c;
+}
+
+.communication-message p {
+  color: #2b2530;
+}
+
+.communication-message-meta,
+.communication-status-text,
+.communication-ticks {
+  color: #8b7a87;
+}
+
+.communication-ticks.is-seen {
+  color: #0ea5e9;
+}
+
+.communication-compose {
+  grid-template-columns: 1fr auto;
+}
+
+.communication-compose textarea {
+  border: 1px solid #ead8c7;
+  background: #ffffff;
+  color: #2b2530;
+}
+
+.communication-compose textarea::placeholder {
+  color: #9a8d9f;
+}
+
+.communication-send-btn {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  padding: 0;
+  background: #9f123f;
+  border-color: #9f123f;
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.worker-chat-badge,
+.communication-button-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}

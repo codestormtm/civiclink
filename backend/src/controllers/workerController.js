@@ -87,12 +87,50 @@ function mapWorkerWriteError(err) {
       return "This NIC number is already used by another worker record.";
     }
 
+    if (
+      err.constraint === "idx_worker_profiles_department_local_call_number"
+      || String(err.detail || "").includes("local_call_number")
+    ) {
+      return "This local call number is already used by another worker in this department.";
+    }
+
     if (err.constraint === "users_email_key") {
       return "This email address is already used by another user account.";
     }
   }
 
+  if (err?.code === "23514" && String(err.constraint || "").includes("local_call_number")) {
+    return "Local call number must be exactly 3 digits, for example 001.";
+  }
+
   return err.message;
+}
+
+function normalizeLocalCallNumber(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length > 3) return "";
+  return digits.padStart(3, "0").slice(-3);
+}
+
+async function getNextLocalCallNumber(client, departmentId) {
+  const result = await client.query(
+    `SELECT local_call_number
+     FROM worker_profiles
+     WHERE department_id = $1
+     ORDER BY local_call_number`,
+    [departmentId]
+  );
+
+  const used = new Set(result.rows.map((row) => row.local_call_number));
+  for (let value = 1; value <= 999; value += 1) {
+    const candidate = String(value).padStart(3, "0");
+    if (!used.has(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error("No local call numbers are available for this department.");
 }
 
 exports.getWorkers = async (req, res) => {
@@ -128,10 +166,13 @@ exports.getWorkers = async (req, res) => {
               wp.full_name,
               wp.name_initials,
               wp.nic_number,
+              wp.local_call_number,
+              wp.address,
               wp.designation,
               wp.employment_type,
               wp.salary,
               wp.date_of_appointment,
+              wp.previous_employer,
               wp.bank_name,
               wp.account_number,
               wp.iban,
@@ -167,6 +208,7 @@ exports.updateWorker = async (req, res) => {
     bank_name,
     account_number,
     iban,
+    local_call_number,
   } = req.body;
 
   try {
@@ -186,6 +228,11 @@ exports.updateWorker = async (req, res) => {
       await pool.query(`UPDATE users SET name = $1 WHERE id = $2`, [full_name, id]);
     }
 
+    const normalizedLocalCallNumber = normalizeLocalCallNumber(local_call_number);
+    if (!normalizedLocalCallNumber) {
+      return failure(res, "Local call number must be exactly 3 digits, for example 001.", 400);
+    }
+
     const result = await pool.query(
       `UPDATE worker_profiles
        SET full_name          = $1,
@@ -198,8 +245,9 @@ exports.updateWorker = async (req, res) => {
            date_of_appointment = $8,
            bank_name          = $9,
            account_number     = $10,
-           iban               = $11
-       WHERE user_id = $12
+           iban               = $11,
+           local_call_number  = $12
+       WHERE user_id = $13
        RETURNING *`,
       [
         full_name || null,
@@ -213,13 +261,15 @@ exports.updateWorker = async (req, res) => {
         bank_name || null,
         account_number || null,
         iban || null,
+        normalizedLocalCallNumber,
         id,
       ]
     );
 
     return success(res, result.rows[0]);
   } catch (err) {
-    return failure(res, mapWorkerWriteError(err));
+    const statusCode = ["23505", "23514"].includes(err?.code) ? 400 : 500;
+    return failure(res, mapWorkerWriteError(err), statusCode);
   }
 };
 
@@ -427,6 +477,7 @@ exports.createWorker = async (req, res) => {
       account_number,
       iban,
       employment_status,
+      local_call_number,
     } = req.body;
 
     if (!email || !password || !full_name || !nic_number) {
@@ -455,6 +506,9 @@ exports.createWorker = async (req, res) => {
     await client.query("BEGIN");
     transactionStarted = true;
 
+    const nextLocalCallNumber = normalizeLocalCallNumber(local_call_number)
+      || await getNextLocalCallNumber(client, admin.department_id);
+
     const userResult = await client.query(
       `INSERT INTO users (name, email, password_hash, role, department_id)
        VALUES ($1, $2, $3, 'WORKER', $4)
@@ -480,11 +534,12 @@ exports.createWorker = async (req, res) => {
         bank_name,
         account_number,
         iban,
+        local_call_number,
         profile_picture_url,
         nic_copy_url,
         employment_status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *`,
       [
         userId,
@@ -501,6 +556,7 @@ exports.createWorker = async (req, res) => {
         bank_name || null,
         account_number || null,
         iban || null,
+        nextLocalCallNumber,
         profileUrl,
         nicUrl,
         employment_status || "ACTIVE",
@@ -516,7 +572,8 @@ exports.createWorker = async (req, res) => {
       await client.query("ROLLBACK");
     }
     console.error("[createWorker error]", err);
-    return failure(res, mapWorkerWriteError(err));
+    const statusCode = ["23505", "23514"].includes(err?.code) ? 400 : 500;
+    return failure(res, mapWorkerWriteError(err), statusCode);
   } finally {
     client.release();
   }

@@ -7,6 +7,7 @@ import socket from "../api/socket";
 import ComplaintQueueFilters from "../components/ComplaintQueueFilters";
 import SlaWarningCard from "../components/SlaWarningCard";
 import AdminComplaintGalleryModal from "../components/AdminComplaintGalleryModal";
+import CommunicationPanel from "../communication/CommunicationPanel";
 
 const STATUS_COLORS = {
   SUBMITTED: "#6b7280",
@@ -50,7 +51,7 @@ const DEFAULT_FILTERS = {
 
 const SRI_LANKA = [7.8731, 80.7718];
 
-export default function Dashboard({ focus = "overview" }) {
+export default function Dashboard({ focus = "overview", communicationUnreadByComplaint = {}, onCommunicationOpen }) {
   const [tab, setTab] = useState(() => (focus === "map" ? "map" : "complaints"));
   const [issues, setIssues] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -63,6 +64,7 @@ export default function Dashboard({ focus = "overview" }) {
   const [editingId, setEditingId] = useState(null);
   const [editPriority, setEditPriority] = useState("");
   const [selectedComplaintDetail, setSelectedComplaintDetail] = useState(null);
+  const [communicationTarget, setCommunicationTarget] = useState(null);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [galleryError, setGalleryError] = useState("");
 
@@ -479,6 +481,22 @@ export default function Dashboard({ focus = "overview" }) {
                       View Gallery
                     </button>
 
+                    {issue.assigned_worker_id ? (
+                      <button
+                        type="button"
+                        className="admin-gallery-btn"
+                        onClick={() => {
+                          onCommunicationOpen?.(issue.id);
+                          setCommunicationTarget(issue);
+                        }}
+                      >
+                        Chat / Call Worker
+                        {communicationUnreadByComplaint[issue.id] > 0 ? (
+                          <span className="communication-button-badge">{communicationUnreadByComplaint[issue.id]}</span>
+                        ) : null}
+                      </button>
+                    ) : null}
+
                     {!isClosed && !isEditing && (
                       <button className="btn-primary" onClick={() => rejectWrongDepartment(issue.id)}>
                         Reject Wrong Department
@@ -570,6 +588,16 @@ export default function Dashboard({ focus = "overview" }) {
           onClose={closeComplaintGallery}
         />
       )}
+
+      {communicationTarget ? (
+        <CommunicationPanel
+          assignmentId={communicationTarget.assignment_id || ""}
+          complaintId={communicationTarget.id}
+          title={communicationTarget.title}
+          peerName={communicationTarget.assigned_worker_name}
+          onClose={() => setCommunicationTarget(null)}
+        />
+      ) : null}
     </div>
   );
 }
